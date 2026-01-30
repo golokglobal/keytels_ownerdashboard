@@ -1,0 +1,374 @@
+// ============================================================================
+// FILE 4: src/store/slices/userSlice.js
+// ============================================================================
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import {
+  loginApi,
+  registerApi,
+  logoutApi,
+  getProfileApi,
+  updateProfileApi,
+  uploadProfilePhotoApi,
+  changePasswordApi,
+  getUserByUsername,
+  getUserByEmail,
+} from "../../api/auth";
+
+// -------------------- THUNKS -------------------- //
+
+export const signupUser = createAsyncThunk(
+  "user/signupUser",
+  async (
+    { username, email, password, firstName, lastName, phoneNumber },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await registerApi({
+        username,
+        email,
+        password,
+        firstName,
+        lastName,
+        phoneNumber,
+      });
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || "Sign up failed");
+    }
+  }
+);
+
+export const signinUser = createAsyncThunk(
+  "user/signinUser",
+  async ({ username, password, role }, { rejectWithValue }) => {
+    try {
+      // All staff (including managers) use the same login endpoint
+      const endpoint = "/api/staff/login";
+
+      console.log("[SIGNIN] Endpoint:", endpoint, "| Username:", username, "| Role:", role);
+
+      const response = await loginApi(endpoint, {
+        username: username.trim(),
+        password,
+      });
+
+      console.log("âœ… [SIGNIN] Success! User role from server:", response.user?.role);
+
+      return response;
+    } catch (error) {
+      console.error("âŒ [SIGNIN] Failed:", error.message);
+      return rejectWithValue(error.message || "Invalid credentials");
+    }
+  }
+);
+
+export const signinOwner = createAsyncThunk(
+  "user/signinOwner",
+  async ({ username, password }, { rejectWithValue }) => {
+    try {
+      // Hotel owners use a separate login endpoint
+      const endpoint = "/api/owners/login";
+
+      console.log("[OWNER SIGNIN] Endpoint:", endpoint, "| Username:", username);
+
+      const response = await loginApi(endpoint, {
+        username: username.trim(),
+        password,
+      });
+
+      console.log("✅ [OWNER SIGNIN] Success! User role from server:", response.user?.role);
+
+      return response;
+    } catch (error) {
+      console.error("❌ [OWNER SIGNIN] Failed:", error.message);
+      return rejectWithValue(error.message || "Invalid credentials");
+    }
+  }
+);
+
+export const fetchCurrentUser = createAsyncThunk(
+  "user/fetchCurrentUser",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await getProfileApi();
+      return response.user;
+    } catch (error) {
+      return rejectWithValue(error.message || "Failed to fetch current user");
+    }
+  }
+);
+
+export const updateProfile = createAsyncThunk(
+  "user/updateProfile",
+  async ({ firstName, lastName, phoneNumber }, { rejectWithValue }) => {
+    try {
+      const response = await updateProfileApi({
+        firstName,
+        lastName,
+        phoneNumber,
+      });
+      return response.user;
+    } catch (error) {
+      return rejectWithValue(error.message || "Failed to update profile");
+    }
+  }
+);
+
+export const uploadProfilePhoto = createAsyncThunk(
+  "user/uploadProfilePhoto",
+  async (photoUrl, { rejectWithValue }) => {
+    try {
+      const response = await uploadProfilePhotoApi(photoUrl);
+      return response.user;
+    } catch (error) {
+      return rejectWithValue(error.message || "Failed to update profile photo");
+    }
+  }
+);
+
+export const changePassword = createAsyncThunk(
+  "user/changePassword",
+  async (
+    { currentPassword, newPassword, confirmPassword },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await changePasswordApi(
+        currentPassword,
+        newPassword,
+        confirmPassword
+      );
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || "Failed to change password");
+    }
+  }
+);
+
+export const logoutUser = createAsyncThunk(
+  "user/logoutUser",
+  async (_, { rejectWithValue }) => {
+    try {
+      await logoutApi();
+      return true;
+    } catch (error) {
+      return rejectWithValue(error.message || "Logout failed");
+    }
+  }
+);
+
+export const fetchUserByUsername = createAsyncThunk(
+  "user/fetchUserByUsername",
+  async (username, { rejectWithValue }) => {
+    try {
+      const response = await getUserByUsername(username);
+      return response.user;
+    } catch (error) {
+      return rejectWithValue(error.message || "User not found");
+    }
+  }
+);
+
+export const fetchUserByEmail = createAsyncThunk(
+  "user/fetchUserByEmail",
+  async (email, { rejectWithValue }) => {
+    try {
+      const response = await getUserByEmail(email);
+      return response.user;
+    } catch (error) {
+      return rejectWithValue(error.message || "User not found");
+    }
+  }
+);
+
+// -------------------- SLICE -------------------- //
+
+const initialState = {
+  user: null,
+  userId: localStorage.getItem("userId") || null,
+  userRole: localStorage.getItem("userRole") || null,
+  hotelId: localStorage.getItem("hotelId") || null,
+  accessToken: localStorage.getItem("accessToken") || null,
+  refreshToken: localStorage.getItem("refreshToken") || null,
+  isAuthenticated: !!localStorage.getItem("accessToken"),
+  loading: false,
+  error: null,
+};
+
+const userSlice = createSlice({
+  name: "user",
+  initialState,
+  reducers: {
+    clearError: (state) => {
+      state.error = null;
+    },
+
+    restoreUser: (state) => {
+      const userStr = localStorage.getItem("user");
+      const accessToken = localStorage.getItem("accessToken");
+
+      if (userStr && accessToken) {
+        try {
+          const user = JSON.parse(userStr);
+          state.user = user;
+          state.userId = user.id || null;
+          state.userRole = user.role || null;
+          state.hotelId = user.hotelId || null;
+          state.accessToken = accessToken;
+          state.refreshToken = localStorage.getItem("refreshToken") || null;
+          state.isAuthenticated = true;
+        } catch (err) {
+          console.error("Failed to restore user from localStorage", err);
+          localStorage.clear();
+        }
+      }
+    },
+  },
+
+  extraReducers: (builder) => {
+    builder
+      // â”€â”€ SIGNUP â”€â”€
+      .addCase(signupUser.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(signupUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.user;
+        state.accessToken = action.payload.token;
+        state.userId = action.payload.user?.id || null;
+        state.userRole = action.payload.user?.role || null;
+        state.hotelId = action.payload.user?.hotelId || null;
+        state.isAuthenticated = true;
+      })
+      .addCase(signupUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // â”€â”€ SIGNIN â”€â”€
+      .addCase(signinUser.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(signinUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.user;
+        state.accessToken = action.payload.accessToken;
+        state.refreshToken = action.payload.refreshToken;
+        state.userId = action.payload.user?.id || null;
+        state.userRole = action.payload.user?.role || null;
+        state.hotelId = action.payload.user?.hotelId || null;
+        state.isAuthenticated = true;
+        state.error = null;
+
+        // Save to localStorage
+        localStorage.setItem("user", JSON.stringify(action.payload.user));
+        localStorage.setItem("accessToken", action.payload.accessToken);
+        localStorage.setItem("refreshToken", action.payload.refreshToken);
+        localStorage.setItem("userId", action.payload.user?.id || "");
+        localStorage.setItem("userRole", action.payload.user?.role || "");
+        if (action.payload.user?.hotelId) {
+          localStorage.setItem("hotelId", action.payload.user.hotelId);
+        }
+
+        console.log("âœ… Redux state updated. Role:", action.payload.user?.role);
+      })
+      .addCase(signinUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+        console.error("âŒ Redux signin rejected:", action.payload);
+      })
+
+      // ── OWNER SIGNIN ──
+      .addCase(signinOwner.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(signinOwner.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.user;
+        state.accessToken = action.payload.accessToken;
+        state.refreshToken = action.payload.refreshToken;
+        state.userId = action.payload.user?.id || null;
+        state.userRole = action.payload.user?.role || null;
+        state.hotelId = action.payload.user?.hotelId || null;
+        state.isAuthenticated = true;
+        state.error = null;
+
+        // Save to localStorage
+        localStorage.setItem("user", JSON.stringify(action.payload.user));
+        localStorage.setItem("accessToken", action.payload.accessToken);
+        localStorage.setItem("refreshToken", action.payload.refreshToken);
+        localStorage.setItem("userId", action.payload.user?.id || "");
+        localStorage.setItem("userRole", action.payload.user?.role || "");
+        if (action.payload.user?.hotelId) {
+          localStorage.setItem("hotelId", action.payload.user.hotelId);
+        }
+
+        console.log("✅ Redux owner state updated. Role:", action.payload.user?.role);
+      })
+      .addCase(signinOwner.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+        console.error("❌ Redux owner signin rejected:", action.payload);
+      })
+
+      // â”€â”€ FETCH CURRENT USER â”€â”€
+      .addCase(fetchCurrentUser.fulfilled, (state, action) => {
+        state.user = action.payload;
+        state.userId = action.payload?.id || null;
+        state.userRole = action.payload?.role || null;
+        state.hotelId = action.payload?.hotelId || null;
+        state.isAuthenticated = true;
+        state.loading = false;
+
+        localStorage.setItem("user", JSON.stringify(action.payload));
+        localStorage.setItem("userId", action.payload?.id || "");
+        localStorage.setItem("userRole", action.payload?.role || "");
+        if (action.payload?.hotelId) {
+          localStorage.setItem("hotelId", action.payload.hotelId);
+        }
+      })
+
+      // â”€â”€ LOGOUT â”€â”€
+      .addCase(logoutUser.fulfilled, (state) => {
+        state.user = null;
+        state.userId = null;
+        state.userRole = null;
+        state.hotelId = null;
+        state.accessToken = null;
+        state.refreshToken = null;
+        state.isAuthenticated = false;
+        state.loading = false;
+        state.error = null;
+      })
+
+      // Generic handlers
+      .addMatcher(
+        (action) => action.type.endsWith("/pending"),
+        (state) => {
+          state.loading = true;
+        }
+      )
+      .addMatcher(
+        (action) => action.type.endsWith("/rejected"),
+        (state, action) => {
+          state.loading = false;
+          state.error = action.payload;
+        }
+      );
+  },
+});
+
+export const { clearError, restoreUser } = userSlice.actions;
+export default userSlice.reducer;
+
+// Selectors
+export const selectCurrentUser = (state) => state.user.user;
+export const selectUserId = (state) => state.user.userId;
+export const selectUserRole = (state) => state.user.userRole;
+export const selectHotelId = (state) => state.user.hotelId;
+export const selectIsAuthenticated = (state) => state.user.isAuthenticated;
+export const selectUserLoading = (state) => state.user.loading;
+export const selectUserError = (state) => state.user.error;
