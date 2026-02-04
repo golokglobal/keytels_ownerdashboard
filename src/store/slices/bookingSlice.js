@@ -169,6 +169,22 @@ export const fetchHotelRevenue = createAsyncThunk(
   }
 );
 
+// Fetch booking payment details
+export const fetchBookingPaymentDetails = createAsyncThunk(
+  'bookings/fetchBookingPaymentDetails',
+  async (bookingId, { rejectWithValue }) => {
+    try {
+      console.log('🔄 Fetching payment details for booking:', bookingId);
+      const response = await api.getBookingPaymentDetails(bookingId);
+      console.log('✅ Payment details fetched:', response);
+      return response;
+    } catch (error) {
+      console.error('❌ Error fetching payment details:', error);
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch payment details');
+    }
+  }
+);
+
 /* ============================ SLICE ============================ */
 
 const initialState = {
@@ -176,9 +192,13 @@ const initialState = {
   todayCheckIns: [],
   todayCheckOuts: [],
   selectedBooking: null,
+  paymentDetails: null,
   summary: null,
   revenue: null,
   loading: false,
+  checkInLoading: false,
+  checkOutLoading: false,
+  cancelLoading: false,
   error: null,
 };
 
@@ -233,7 +253,11 @@ const bookingSlice = createSlice({
       })
 
       // ────────────── CHECK-IN ──────────────
+      .addCase(checkIn.pending, (state) => {
+        state.checkInLoading = true;
+      })
       .addCase(checkIn.fulfilled, (state, action) => {
+        state.checkInLoading = false;
         // Update booking in list
         const index = state.bookings.findIndex(b => b.bookingId === action.payload.bookingId);
         if (index !== -1) {
@@ -242,9 +266,17 @@ const bookingSlice = createSlice({
         // Remove from todayCheckIns
         state.todayCheckIns = state.todayCheckIns.filter(b => b.bookingId !== action.payload.bookingId);
       })
+      .addCase(checkIn.rejected, (state, action) => {
+        state.checkInLoading = false;
+        state.error = action.payload;
+      })
 
       // ────────────── CHECK-OUT ──────────────
+      .addCase(checkOut.pending, (state) => {
+        state.checkOutLoading = true;
+      })
       .addCase(checkOut.fulfilled, (state, action) => {
+        state.checkOutLoading = false;
         // Update booking in list
         const index = state.bookings.findIndex(b => b.bookingId === action.payload.bookingId);
         if (index !== -1) {
@@ -253,14 +285,26 @@ const bookingSlice = createSlice({
         // Remove from todayCheckOuts
         state.todayCheckOuts = state.todayCheckOuts.filter(b => b.bookingId !== action.payload.bookingId);
       })
+      .addCase(checkOut.rejected, (state, action) => {
+        state.checkOutLoading = false;
+        state.error = action.payload;
+      })
 
       // ────────────── CANCEL BOOKING ──────────────
+      .addCase(cancelBooking.pending, (state) => {
+        state.cancelLoading = true;
+      })
       .addCase(cancelBooking.fulfilled, (state, action) => {
+        state.cancelLoading = false;
         // Update booking in list
         const index = state.bookings.findIndex(b => b.bookingId === action.payload.bookingId);
         if (index !== -1) {
           state.bookings[index] = { ...state.bookings[index], ...action.payload };
         }
+      })
+      .addCase(cancelBooking.rejected, (state, action) => {
+        state.cancelLoading = false;
+        state.error = action.payload;
       })
 
       // ────────────── FETCH BOOKING SUMMARY ──────────────
@@ -280,6 +324,11 @@ const bookingSlice = createSlice({
       // ────────────── FETCH REVENUE ──────────────
       .addCase(fetchHotelRevenue.fulfilled, (state, action) => {
         state.revenue = action.payload;
+      })
+
+      // ────────────── FETCH PAYMENT DETAILS ──────────────
+      .addCase(fetchBookingPaymentDetails.fulfilled, (state, action) => {
+        state.paymentDetails = action.payload;
       });
   },
 });
@@ -291,7 +340,12 @@ export default bookingSlice.reducer;
 export const selectBookings = (state) => state.bookings.bookings;
 export const selectTodayCheckIns = (state) => state.bookings.todayCheckIns;
 export const selectTodayCheckOuts = (state) => state.bookings.todayCheckOuts;
+export const selectSelectedBooking = (state) => state.bookings.selectedBooking;
+export const selectPaymentDetails = (state) => state.bookings.paymentDetails;
 export const selectBookingSummary = (state) => state.bookings.summary;
 export const selectRevenue = (state) => state.bookings.revenue;
 export const selectBookingsLoading = (state) => state.bookings.loading;
+export const selectCheckInLoading = (state) => state.bookings.checkInLoading;
+export const selectCheckOutLoading = (state) => state.bookings.checkOutLoading;
+export const selectCancelLoading = (state) => state.bookings.cancelLoading;
 export const selectBookingsError = (state) => state.bookings.error;

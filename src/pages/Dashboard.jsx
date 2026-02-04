@@ -1,80 +1,63 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
+import { format, subDays } from 'date-fns';
 import {
   DollarSign,
   Calendar,
   TrendingUp,
   Bed,
-  Users,
   Star,
   Clock,
   ArrowRight,
+  CheckCircle,
+  XCircle,
+  LogIn,
+  LogOut,
 } from 'lucide-react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { StatCard } from '../components/shared/StatCard';
 import { DataTable } from '../components/shared/DataTable';
 import { Loader } from '../components/common/Loader';
-import { setStats, setRevenueData } from '../store/slices/analyticsSlice';
-import { setBookings } from '../store/slices/bookingSlice';
-import { fetchDashboardStats, fetchRevenueData } from '../api/analytics';
-import { fetchHotelBookings, fetchBookingSummary, fetchTodayCheckIns, fetchTodayCheckOuts } from '../store/slices/bookingSlice';
+import {
+  fetchHotelBookings,
+  fetchBookingSummary,
+  fetchTodayCheckIns,
+  fetchTodayCheckOuts,
+  fetchHotelRevenue,
+} from '../store/slices/bookingSlice';
 import { fetchDashboardReviews, fetchHotelReviewSummary } from '../store/slices/reviewSlice';
 
 export const Dashboard = () => {
   const dispatch = useDispatch();
-  const { stats, revenueData } = useSelector((state) => state.analytics);
-  const { bookings, todayCheckIns, todayCheckOuts, summary: bookingSummary } = useSelector((state) => state.bookings);
+  const { bookings, todayCheckIns, todayCheckOuts, summary: bookingSummary, revenue } = useSelector((state) => state.bookings);
   const { dashboardReviews, summary: reviewSummary } = useSelector((state) => state.reviews);
   const hotelId = useSelector((state) => state.user.hotelId);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (hotelId) {
+      loadData();
+    } else {
+      setLoading(false);
+    }
+  }, [hotelId]);
 
   const loadData = async () => {
     try {
-      // Load analytics data (mock data - should work)
-      try {
-        const [statsRes, revenueRes] = await Promise.all([
-          fetchDashboardStats(),
-          fetchRevenueData(),
-        ]);
-        dispatch(setStats(statsRes.stats));
-        dispatch(setRevenueData(revenueRes.data));
-      } catch (error) {
-        console.warn('Analytics data failed:', error);
-      }
+      // Calculate date range for revenue (last 30 days)
+      const toDate = format(new Date(), 'yyyy-MM-dd');
+      const fromDate = format(subDays(new Date(), 30), 'yyyy-MM-dd');
 
-      // Load real data from backend if hotelId is available
-      if (hotelId) {
-        // Try each API call independently - don't let one failure break others
-
-        // Try to fetch bookings
-        dispatch(fetchHotelBookings({ hotelId, filters: { bookingStatus: 'BOOKED' } }))
-          .catch(err => console.warn('Bookings API not available:', err.message));
-
-        // Try to fetch booking summary
-        dispatch(fetchBookingSummary(hotelId))
-          .catch(err => console.warn('Booking summary API not available:', err.message));
-
-        // Try to fetch today's check-ins
-        dispatch(fetchTodayCheckIns(hotelId))
-          .catch(err => console.warn('Check-ins API not available:', err.message));
-
-        // Try to fetch today's check-outs
-        dispatch(fetchTodayCheckOuts(hotelId))
-          .catch(err => console.warn('Check-outs API not available:', err.message));
-
-        // Try to fetch dashboard reviews
-        dispatch(fetchDashboardReviews(hotelId))
-          .catch(err => console.warn('Dashboard reviews API not available:', err.message));
-
-        // Try to fetch review summary
-        dispatch(fetchHotelReviewSummary(hotelId))
-          .catch(err => console.warn('Review summary API not available:', err.message));
-      }
+      // Load real data from backend APIs in parallel
+      await Promise.allSettled([
+        dispatch(fetchHotelBookings({ hotelId, filters: {} })),
+        dispatch(fetchBookingSummary(hotelId)),
+        dispatch(fetchTodayCheckIns(hotelId)),
+        dispatch(fetchTodayCheckOuts(hotelId)),
+        dispatch(fetchHotelRevenue({ hotelId, fromDate, toDate })),
+        dispatch(fetchDashboardReviews(hotelId)),
+        dispatch(fetchHotelReviewSummary(hotelId)),
+      ]);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
@@ -82,34 +65,75 @@ export const Dashboard = () => {
     }
   };
 
+  // Helper to get guest display name
+  const getGuestName = (booking) => {
+    if (booking.guest) {
+      const { firstName, lastName } = booking.guest;
+      if (firstName || lastName) {
+        return `${firstName || ''} ${lastName || ''}`.trim();
+      }
+      return 'Guest';
+    }
+    return booking.guestName || 'Guest';
+  };
+
   if (loading) {
     return <Loader fullScreen />;
   }
 
   const bookingColumns = [
-    { header: 'Booking ID', accessor: 'bookingId' },
-    { header: 'Guest', accessor: 'guestName' },
+    {
+      header: 'Booking ID',
+      render: (row) => (
+        <span className="font-mono text-xs text-slate-600">
+          {row.bookingId?.substring(0, 8)}...
+        </span>
+      )
+    },
+    {
+      header: 'Guest',
+      render: (row) => getGuestName(row)
+    },
     {
       header: 'Check-in',
       render: (row) => new Date(row.checkInDate).toLocaleDateString(),
     },
     {
+      header: 'Check-out',
+      render: (row) => new Date(row.checkOutDate).toLocaleDateString(),
+    },
+    {
       header: 'Status',
-      render: (row) => (
-        <span
-          className={`px-3 py-1 rounded-full text-xs font-medium ${
-            row.bookingStatus === 'BOOKED'
-              ? 'bg-green-100 text-green-700'
-              : row.bookingStatus === 'PENDING'
-              ? 'bg-yellow-100 text-yellow-700'
-              : row.bookingStatus === 'CHECKED_IN'
-              ? 'bg-blue-100 text-blue-700'
-              : 'bg-slate-100 text-slate-700'
-          }`}
-        >
-          {row.bookingStatus}
-        </span>
-      ),
+      render: (row) => {
+        const statusConfig = {
+          BOOKED: { color: 'bg-green-100 text-green-700', icon: CheckCircle },
+          CHECKED_IN: { color: 'bg-blue-100 text-blue-700', icon: LogIn },
+          CHECKED_OUT: { color: 'bg-slate-100 text-slate-700', icon: LogOut },
+          CANCELLED: { color: 'bg-red-100 text-red-700', icon: XCircle },
+          PENDING: { color: 'bg-yellow-100 text-yellow-700', icon: Clock },
+        };
+        const config = statusConfig[row.bookingStatus] || { color: 'bg-gray-100 text-gray-700' };
+        return (
+          <span className={`px-3 py-1 rounded-full text-xs font-medium ${config.color}`}>
+            {row.bookingStatus}
+          </span>
+        );
+      },
+    },
+    {
+      header: 'Payment',
+      render: (row) => {
+        const colors = {
+          PAID: 'text-green-600',
+          PENDING: 'text-yellow-600',
+          FAILED: 'text-red-600',
+        };
+        return (
+          <span className={`text-xs font-medium ${colors[row.paymentStatus] || 'text-gray-600'}`}>
+            {row.paymentStatus}
+          </span>
+        );
+      },
     },
     {
       header: 'Amount',
@@ -125,41 +149,35 @@ export const Dashboard = () => {
         <p className="text-slate-600">Welcome back! Here's what's happening with your hotel today.</p>
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats Grid - Using Real Booking Summary Data */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Total Revenue"
-          value={`$${(bookingSummary?.totalRevenue || stats?.totalRevenue || 0).toLocaleString()}`}
+          value={`$${(revenue?.totalRevenue || 0).toLocaleString()}`}
           icon={DollarSign}
           color="blue"
-          trend="up"
-          trendValue="+12.5%"
         />
         <StatCard
           title="Total Bookings"
-          value={bookingSummary?.totalBookings || stats?.totalBookings || 0}
+          value={bookingSummary?.totalBookings || bookings.length || 0}
           icon={Calendar}
           color="green"
-          trend="up"
-          trendValue="+8.2%"
         />
         <StatCard
-          title="Occupancy Rate"
-          value={`${bookingSummary?.occupancyRate || stats?.occupancyRate || 0}%`}
+          title="Checked In"
+          value={bookingSummary?.checkedIn || 0}
           icon={TrendingUp}
           color="purple"
-          trend="up"
-          trendValue="+5.4%"
         />
         <StatCard
-          title="Available Rooms"
-          value={bookingSummary?.availableRooms || stats?.availableRooms || 0}
+          title="Checked Out"
+          value={bookingSummary?.checkedOut || 0}
           icon={Bed}
           color="orange"
         />
       </div>
 
-      {/* Secondary Stats */}
+      {/* Secondary Stats - Using Real API Data */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -168,9 +186,9 @@ export const Dashboard = () => {
         >
           <div className="flex items-center justify-between mb-2">
             <p className="text-slate-600 text-sm font-medium">Check-ins Today</p>
-            <Clock className="w-5 h-5 text-blue-600" />
+            <LogIn className="w-5 h-5 text-blue-600" />
           </div>
-          <p className="text-2xl font-bold text-slate-900">{todayCheckIns?.length || stats?.checkInsToday || 0}</p>
+          <p className="text-2xl font-bold text-slate-900">{todayCheckIns?.length || 0}</p>
         </motion.div>
 
         <motion.div
@@ -181,9 +199,9 @@ export const Dashboard = () => {
         >
           <div className="flex items-center justify-between mb-2">
             <p className="text-slate-600 text-sm font-medium">Check-outs Today</p>
-            <Clock className="w-5 h-5 text-green-600" />
+            <LogOut className="w-5 h-5 text-green-600" />
           </div>
-          <p className="text-2xl font-bold text-slate-900">{todayCheckOuts?.length || stats?.checkOutsToday || 0}</p>
+          <p className="text-2xl font-bold text-slate-900">{todayCheckOuts?.length || 0}</p>
         </motion.div>
 
         <motion.div
@@ -193,10 +211,10 @@ export const Dashboard = () => {
           className="bg-white rounded-xl border border-slate-200 p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <p className="text-slate-600 text-sm font-medium">Total Guests</p>
-            <Users className="w-5 h-5 text-purple-600" />
+            <p className="text-slate-600 text-sm font-medium">Booked</p>
+            <Calendar className="w-5 h-5 text-purple-600" />
           </div>
-          <p className="text-2xl font-bold text-slate-900">{bookingSummary?.totalGuests || stats?.totalGuests || 0}</p>
+          <p className="text-2xl font-bold text-slate-900">{bookingSummary?.booked || 0}</p>
         </motion.div>
 
         <motion.div
@@ -206,70 +224,94 @@ export const Dashboard = () => {
           className="bg-white rounded-xl border border-slate-200 p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <p className="text-slate-600 text-sm font-medium">Average Rating</p>
-            <Star className="w-5 h-5 text-yellow-600" />
+            <p className="text-slate-600 text-sm font-medium">Cancelled</p>
+            <XCircle className="w-5 h-5 text-red-600" />
           </div>
-          <p className="text-2xl font-bold text-slate-900">{reviewSummary?.overallAverageRating?.toFixed(1) || stats?.averageRating || 0} / 5</p>
+          <p className="text-2xl font-bold text-slate-900">{bookingSummary?.cancelled || 0}</p>
         </motion.div>
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue Chart */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-xl border border-slate-200 p-6"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">Revenue Trend</h3>
-              <p className="text-sm text-slate-600">Last 30 days</p>
+      {/* Today's Check-ins and Check-outs Lists */}
+      {(todayCheckIns?.length > 0 || todayCheckOuts?.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Today's Check-ins */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-xl border border-slate-200 p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <LogIn className="w-5 h-5 text-blue-600" />
+                Today's Check-ins
+              </h3>
+              <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
+                {todayCheckIns?.length || 0}
+              </span>
             </div>
-            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
-              View Report
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={revenueData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
-              <YAxis stroke="#94a3b8" fontSize={12} />
-              <Tooltip />
-              <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </motion.div>
+            <div className="space-y-3">
+              {todayCheckIns?.slice(0, 5).map((booking) => (
+                <div key={booking.bookingId} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-slate-900">{getGuestName(booking)}</p>
+                    <p className="text-sm text-slate-500">
+                      Check-out: {new Date(booking.checkOutDate).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    booking.bookingStatus === 'BOOKED' ? 'bg-green-100 text-green-700' :
+                    booking.bookingStatus === 'CHECKED_IN' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {booking.bookingStatus}
+                  </span>
+                </div>
+              ))}
+              {(!todayCheckIns || todayCheckIns.length === 0) && (
+                <p className="text-sm text-slate-500 text-center py-4">No check-ins scheduled for today</p>
+              )}
+            </div>
+          </motion.div>
 
-        {/* Bookings Chart */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white rounded-xl border border-slate-200 p-6"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">Daily Bookings</h3>
-              <p className="text-sm text-slate-600">Last 30 days</p>
+          {/* Today's Check-outs */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-white rounded-xl border border-slate-200 p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <LogOut className="w-5 h-5 text-green-600" />
+                Today's Check-outs
+              </h3>
+              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
+                {todayCheckOuts?.length || 0}
+              </span>
             </div>
-            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
-              View All
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={revenueData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
-              <YAxis stroke="#94a3b8" fontSize={12} />
-              <Tooltip />
-              <Bar dataKey="bookings" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </motion.div>
-      </div>
+            <div className="space-y-3">
+              {todayCheckOuts?.slice(0, 5).map((booking) => (
+                <div key={booking.bookingId} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-slate-900">{getGuestName(booking)}</p>
+                    <p className="text-sm text-slate-500">
+                      Checked in: {new Date(booking.checkInDate).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    booking.paymentStatus === 'PAID' ? 'bg-green-100 text-green-700' :
+                    booking.paymentStatus === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {booking.paymentStatus}
+                  </span>
+                </div>
+              ))}
+              {(!todayCheckOuts || todayCheckOuts.length === 0) && (
+                <p className="text-sm text-slate-500 text-center py-4">No check-outs scheduled for today</p>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Recent Bookings */}
       <motion.div
@@ -278,12 +320,22 @@ export const Dashboard = () => {
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-slate-900">Recent Bookings</h2>
-          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
+          <button
+            onClick={() => window.location.href = '/bookings'}
+            className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+          >
             View All
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
-        <DataTable columns={bookingColumns} data={bookings} />
+        {bookings && bookings.length > 0 ? (
+          <DataTable columns={bookingColumns} data={bookings.slice(0, 10)} />
+        ) : (
+          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
+            <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-600">No bookings found</p>
+          </div>
+        )}
       </motion.div>
 
       {/* Reviews Summary Section */}
