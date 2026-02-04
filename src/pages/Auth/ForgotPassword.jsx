@@ -40,7 +40,7 @@ export const ForgotPassword = () => {
               <Hotel className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Desiney World
+              Keytels
             </h1>
           </div>
           <p className="text-slate-600">Reset your password</p>

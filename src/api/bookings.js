@@ -31,21 +31,25 @@ export const getTodayCheckIns = (hotelId) =>
 export const getTodayCheckOuts = (hotelId) =>
   api.get(`/api/hotels/${hotelId}/checkouts/today`).then(res => res.data);
 
-// Check-in a booking
+// Check-in a booking (POST as per API spec)
 export const checkInBooking = (bookingId) =>
-  api.put(`/api/bookings/${bookingId}/checkin`).then(res => res.data);
+  api.post(`/api/bookings/${bookingId}/checkin`).then(res => res.data);
 
-// Check-out a booking
+// Check-out a booking (POST as per API spec)
 export const checkOutBooking = (bookingId) =>
-  api.put(`/api/bookings/${bookingId}/checkout`).then(res => res.data);
+  api.post(`/api/bookings/${bookingId}/checkout`).then(res => res.data);
 
-// Cancel a booking
+// Cancel a booking (POST as per API spec)
 export const cancelBooking = (bookingId) =>
-  api.put(`/api/bookings/${bookingId}/cancel`).then(res => res.data);
+  api.post(`/api/bookings/${bookingId}/cancel`).then(res => res.data);
 
 // Get booking summary for a hotel
 export const getBookingSummary = (hotelId) =>
   api.get(`/api/hotels/${hotelId}/bookings/summary`).then(res => res.data);
+
+// Get booking payment details
+export const getBookingPaymentDetails = (bookingId) =>
+  api.get(`/api/bookings/${bookingId}/payment`).then(res => res.data);
 
 // Process payment for a booking
 export const processPayment = (bookingId) =>
