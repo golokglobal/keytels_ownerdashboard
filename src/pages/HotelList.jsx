@@ -1,81 +1,164 @@
-// src/pages/HotelList.jsx
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchAllOwnerHotels, fetchHotelById, deleteHotel, clearHotelError, clearAllHotels } from '../store/slices/PartnerHotelslice';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  fetchAllOwnerHotels,
+  fetchHotelById,
+  deleteHotel,
+  clearHotelError,
+  clearAllHotels,
+} from '../store/slices/PartnerHotelslice';
 import { useNavigate } from 'react-router-dom';
-import { Edit, Trash2, Plus, Building2, MapPin, Sparkles, DollarSign, BedDouble, Star } from 'lucide-react';
+import {
+  Edit,
+  Trash2,
+  Plus,
+  Building2,
+  MapPin,
+  BedDouble,
+  Users,
+  DollarSign,
+  CheckCircle,
+  XCircle,
+  Percent,
+  X,
+  Image as ImageIcon,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { toast } from 'react-hot-toast';
+
+// Hotel card image carousel
+const HotelImageCarousel = ({ images = [], hotelImages = [] }) => {
+  const [current, setCurrent] = useState(0);
+
+  // Combine room images and hotel images for display
+  const allImages = [];
+  if (hotelImages?.length > 0) {
+    hotelImages.forEach((img) => {
+      if (img.imageUrl || img.url) allImages.push(img);
+    });
+  }
+  images.forEach((room) => {
+    if (room.images?.length > 0) {
+      room.images.forEach((img) => {
+        if (img.imageUrl || img.url) allImages.push(img);
+      });
+    }
+  });
+
+  if (allImages.length === 0) {
+    return (
+      <div className="w-full h-52 bg-gradient-to-br from-slate-100 to-slate-200 flex flex-col items-center justify-center">
+        <ImageIcon className="w-10 h-10 text-slate-300 mb-2" />
+        <span className="text-xs text-slate-400">No images</span>
+      </div>
+    );
+  }
+
+  // Limit to 8 images max for the dots
+  const displayImages = allImages.slice(0, 8);
+
+  return (
+    <div className="relative w-full h-52 group">
+      <img
+        src={displayImages[current]?.imageUrl || displayImages[current]?.url}
+        alt="Hotel"
+        className="w-full h-full object-cover"
+        onError={(e) => {
+          e.target.src = '';
+          e.target.onerror = null;
+          e.target.parentElement.innerHTML =
+            '<div class="w-full h-full bg-slate-100 flex items-center justify-center"><span class="text-xs text-slate-400">Image unavailable</span></div>';
+        }}
+      />
+      {displayImages.length > 1 && (
+        <>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrent((p) => (p === 0 ? displayImages.length - 1 : p - 1));
+            }}
+            className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/40 hover:bg-black/60 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrent((p) => (p === displayImages.length - 1 ? 0 : p + 1));
+            }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/40 hover:bg-black/60 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+            {displayImages.map((_, i) => (
+              <div
+                key={i}
+                className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                  i === current ? 'bg-white' : 'bg-white/50'
+                }`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 export const HotelList = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { hotels, loading, error } = useSelector((state) => state.partneredhotels);
-
-  const userRole = useSelector((state) => state.user.userRole);
-  const userId = useSelector((state) => state.user.userId);
-  const managerHotelId = useSelector((state) => state.user.hotelId);
-  const isHotelManager = useSelector((state) =>
-    state.user.userRole === 'HOTELMANAGER' ||
-    state.user.userRole === 'manager' ||
-    state.user.userRole === 'HOTELMANAGER'
+  const { hotels, loading, error } = useSelector(
+    (state) => state.partneredhotels
   );
 
-  // Helper: get consistent hotel ID
+  const userId = useSelector((state) => state.user.userId);
+  const managerHotelId = useSelector((state) => state.user.hotelId);
+  const isHotelManager = useSelector(
+    (state) =>
+      state.user.userRole === 'HOTELMANAGER' ||
+      state.user.userRole === 'manager'
+  );
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [hotelToDelete, setHotelToDelete] = useState(null);
+
   const getHotelId = (hotel) =>
-    hotel?.partneredHotelId ||
-    hotel?.id ||
-    hotel?._id ||
-    hotel?.hotelId ||
-    null;
+    hotel?.partneredHotelId || hotel?.id || hotel?._id || hotel?.hotelId || null;
 
   useEffect(() => {
     const loadHotels = async () => {
-      // Clear previous user's hotels before loading new ones
       dispatch(clearAllHotels());
 
       try {
         if (isHotelManager) {
-          // Manager: fetch single hotel by ID
           if (managerHotelId) {
-            console.log(`[HotelList] Manager ${userId} loading assigned hotel ID: ${managerHotelId}`);
             await dispatch(fetchHotelById(managerHotelId)).unwrap();
           } else {
-            console.warn('[HotelList] Manager has no hotelId in state');
             toast.error('No hotel assigned to your account');
           }
         } else {
-          // Owner: try to fetch all hotels
-          console.log(`[HotelList] Owner ${userId} loading hotels`);
-
           try {
             await dispatch(fetchAllOwnerHotels()).unwrap();
           } catch (apiErr) {
-            // Fallback: If API doesn't exist, try using hotelId from login response
-            console.warn('[HotelList] fetchAllOwnerHotels failed, trying fallback with hotelId from login');
-
             if (managerHotelId) {
-              console.log(`[HotelList] Fallback: Loading hotel ${managerHotelId} from login response`);
               await dispatch(fetchHotelById(managerHotelId)).unwrap();
-              toast.info('Using hotel from your account. Backend should implement GET /api/partneredhotel/owner/hotels for multiple hotels');
             } else {
-              throw apiErr; // Re-throw if no fallback available
+              throw apiErr;
             }
           }
         }
       } catch (err) {
         console.error('[HotelList] Load error:', err);
-        const errorMessage = err.message || err.toString() || 'Failed to load hotels';
-
-        // Check if backend endpoint doesn't exist yet
-        if (errorMessage.includes('404') || errorMessage.includes('Not Found')) {
-          toast.error('Backend endpoint not implemented yet. Please add GET /api/partneredhotel/owner/hotels');
-        } else {
-          toast.error(errorMessage);
-        }
+        const errorMessage =
+          err.message || err.toString() || 'Failed to load hotels';
+        toast.error(errorMessage);
       }
     };
 
-    // Only load if user is authenticated
     if (userId) {
       loadHotels();
     }
@@ -85,223 +168,376 @@ export const HotelList = () => {
     };
   }, [dispatch, isHotelManager, managerHotelId, userId]);
 
-  const handleDelete = async (hotelId) => {
-    if (!window.confirm('Delete this hotel permanently? This cannot be undone.')) return;
+  const handleDeleteClick = (hotel) => {
+    setHotelToDelete(hotel);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    const id = getHotelId(hotelToDelete);
+    if (!id) return;
 
     try {
-      await dispatch(deleteHotel(hotelId)).unwrap();
+      await dispatch(deleteHotel(id)).unwrap();
       toast.success('Hotel deleted successfully');
+      setShowDeleteModal(false);
+      setHotelToDelete(null);
     } catch (err) {
       console.error('[HotelList] Delete failed:', err);
       toast.error(err.message || 'Failed to delete hotel');
     }
   };
 
+  // Stats
+  const totalHotels = hotels.length;
+  const totalRooms = hotels.reduce(
+    (sum, h) => sum + (h.rooms?.length || 0),
+    0
+  );
+  const activeHotels = hotels.filter(
+    (h) => h.status?.toUpperCase() === 'ACTIVE'
+  ).length;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 py-8 px-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg">
-                <Building2 className="w-8 h-8 text-white" />
-              </div>
-              <h1 className="text-4xl font-black text-slate-900 tracking-tight">
-                {isHotelManager ? 'My Hotel' : 'My Hotels'}
-              </h1>
-            </div>
-            <p className="text-slate-600 text-lg ml-16">
-              {isHotelManager
-                ? 'Manage your assigned property'
-                : 'Manage your partnered properties'}
-            </p>
-          </div>
-
-          {!isHotelManager && (
-            <button
-              onClick={() => navigate('/add-hotel')}
-              className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-2xl transition-all hover:scale-105 flex items-center justify-center gap-2 font-semibold shadow-lg"
-            >
-              <Plus className="w-5 h-5" /> Add New Hotel
-            </button>
-          )}
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">
+            {isHotelManager ? 'My Hotel' : 'Hotels'}
+          </h1>
+          <p className="text-slate-600">
+            {isHotelManager
+              ? 'Manage your assigned property'
+              : 'Manage your partnered properties'}
+          </p>
         </div>
-
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-xl flex gap-3 items-start shadow-md">
-            <div className="text-red-600 font-semibold">{error}</div>
-          </div>
+        {!isHotelManager && (
+          <button
+            onClick={() => navigate('/add-hotel')}
+            className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Hotel
+          </button>
         )}
+      </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-indigo-600 border-t-transparent mx-auto mb-4"></div>
-              <p className="text-slate-600 font-medium">Loading hotels...</p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {hotels.length > 0 ? (
-              hotels.map((hotel) => {
-                const id = getHotelId(hotel);
-                if (!id) {
-                  console.warn('[HotelList] Hotel missing ID → skipping', hotel);
-                  return null;
-                }
+      {/* Stats */}
+      {hotels.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {[
+            { label: 'Total Hotels', value: totalHotels, color: 'text-slate-900' },
+            { label: 'Total Rooms', value: totalRooms, color: 'text-blue-600' },
+            { label: 'Active', value: activeHotels, color: 'text-green-600' },
+          ].map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className="bg-white rounded-lg border border-slate-200 p-5"
+            >
+              <p className="text-slate-600 text-sm mb-1">{stat.label}</p>
+              <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
-                // More flexible field extraction
-                const name = hotel.hotelName || hotel.name || hotel.title || 'Unnamed Hotel';
-                const city = hotel.city || hotel.location?.city || hotel.address?.city || '—';
-                const country = hotel.country || hotel.location?.country || hotel.address?.country || '—';
+      {/* Error */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          {error}
+        </div>
+      )}
 
-                const rooms = Array.isArray(hotel.rooms) ? hotel.rooms : [];
-                const amenities = Array.isArray(hotel.amenities) ? hotel.amenities : [];
+      {/* Loading */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-900 border-t-transparent"></div>
+        </div>
+      ) : hotels.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {hotels.map((hotel, index) => {
+            const id = getHotelId(hotel);
+            if (!id) return null;
 
-                const prices = rooms
-                  .map((r) => Number(r.pricePerNight || r.basePrice || r.price || 0))
-                  .filter((p) => p > 0);
+            const name = hotel.name || hotel.hotelName || 'Unnamed Hotel';
+            const location = hotel.location || '';
+            const description = hotel.description || '';
+            const rooms = Array.isArray(hotel.rooms) ? hotel.rooms : [];
+            const amenities = Array.isArray(hotel.amenities)
+              ? hotel.amenities
+              : [];
+            const status = hotel.status?.toUpperCase() || 'UNKNOWN';
+            const isActive = status === 'ACTIVE';
+            const discount = hotel.discountPercentage || 0;
 
-                const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
-                const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
+            const prices = rooms
+              .map((r) => Number(r.pricePerNight || r.basePrice || 0))
+              .filter((p) => p > 0);
+            const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+            const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
 
-                return (
-                  <div
-                    key={id}
-                    className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-slate-200 hover:border-indigo-300"
-                  >
-                    {/* Card Header */}
-                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
-                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-10 rounded-full -ml-12 -mb-12"></div>
-                      <div className="relative">
-                        <h3 className="text-2xl font-bold text-white mb-1">{name}</h3>
-                        <div className="flex items-center gap-2 text-indigo-100">
-                          <MapPin className="w-4 h-4" />
-                          <span className="text-sm font-medium">
-                            {city}, {country}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+            return (
+              <motion.div
+                key={id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-lg transition-all group"
+              >
+                {/* Image */}
+                <HotelImageCarousel
+                  images={rooms}
+                  hotelImages={hotel.hotelImages}
+                />
 
-                    {/* Card Body */}
-                    <div className="p-6 space-y-4">
-                      {/* Stats Grid */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-3 border border-blue-100">
-                          <div className="flex items-center gap-2 mb-1">
-                            <BedDouble className="w-4 h-4 text-blue-600" />
-                            <span className="text-xs font-semibold text-blue-900">Rooms</span>
-                          </div>
-                          <p className="text-2xl font-bold text-blue-600">{rooms.length}</p>
-                        </div>
-
-                        <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-3 border border-purple-100">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Sparkles className="w-4 h-4 text-purple-600" />
-                            <span className="text-xs font-semibold text-purple-900">Amenities</span>
-                          </div>
-                          <p className="text-2xl font-bold text-purple-600">{amenities.length}</p>
-                        </div>
-                      </div>
-
-                      {/* Price Range */}
-                      {prices.length > 0 && (
-                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
-                          <div className="flex items-center gap-2 mb-2">
-                            <DollarSign className="w-5 h-5 text-green-600" />
-                            <span className="text-sm font-bold text-green-900">Price Range</span>
-                          </div>
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-3xl font-black text-green-600">${minPrice}</span>
-                            <span className="text-slate-500">-</span>
-                            <span className="text-3xl font-black text-green-600">${maxPrice}</span>
-                            <span className="text-sm text-slate-600 font-medium">/ night</span>
-                          </div>
+                {/* Content */}
+                <div className="p-5 space-y-4">
+                  {/* Name + Status */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-slate-900 text-lg truncate">
+                        {name}
+                      </h3>
+                      {location && (
+                        <div className="flex items-center gap-1.5 text-sm text-slate-500 mt-1">
+                          <MapPin className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{location}</span>
                         </div>
                       )}
-
-                      {/* Amenities */}
-                      {amenities.length > 0 && (
-                        <div>
-                          <p className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1">
-                            <Star className="w-3 h-3" />
-                            Featured Amenities
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {amenities.slice(0, 4).map((amenity, idx) => (
-                              <span
-                                key={idx}
-                                className="px-3 py-1 bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 text-xs rounded-full font-semibold border border-indigo-200"
-                              >
-                                {typeof amenity === 'string' ? amenity : amenity?.name || '—'}
-                              </span>
-                            ))}
-                            {amenities.length > 4 && (
-                              <span className="px-3 py-1 bg-slate-100 text-slate-600 text-xs rounded-full font-semibold border border-slate-200">
-                                +{amenities.length - 4}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Temporary debug – remove after confirming data shows */}
-                      {/* <div className="mt-4 p-3 bg-gray-100 rounded text-xs font-mono overflow-auto max-h-40">
-                        <pre>{JSON.stringify(hotel, null, 2)}</pre>
-                      </div> */}
                     </div>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium shrink-0 ${
+                        isActive
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {isActive ? (
+                        <CheckCircle className="w-3 h-3" />
+                      ) : (
+                        <XCircle className="w-3 h-3" />
+                      )}
+                      {isActive ? 'Active' : status}
+                    </span>
+                  </div>
 
-                    {/* Footer - Actions */}
-                    <div className="px-6 pb-6 flex gap-3">
-                      <button
-                        onClick={() => navigate(`/hotels/edit/${id}`)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all hover:shadow-lg font-semibold group-hover:scale-105 transform duration-200"
-                      >
-                        <Edit className="w-4 h-4" /> Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(id)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl hover:from-red-700 hover:to-rose-700 transition-all hover:shadow-lg font-semibold group-hover:scale-105 transform duration-200"
-                      >
-                        <Trash2 className="w-4 h-4" /> Delete
-                      </button>
+                  {/* Description */}
+                  {description && (
+                    <p className="text-sm text-slate-500 leading-relaxed line-clamp-2">
+                      {description}
+                    </p>
+                  )}
+
+                  {/* Quick Stats */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-1 text-slate-400 mb-1">
+                        <BedDouble className="w-3.5 h-3.5" />
+                      </div>
+                      <p className="text-lg font-bold text-slate-900">
+                        {rooms.length}
+                      </p>
+                      <p className="text-xs text-slate-500">Rooms</p>
+                    </div>
+                    <div className="text-center border-x border-slate-100">
+                      <div className="flex items-center justify-center gap-1 text-slate-400 mb-1">
+                        <Users className="w-3.5 h-3.5" />
+                      </div>
+                      <p className="text-lg font-bold text-slate-900">
+                        {rooms.reduce((s, r) => s + (r.capacity || 0), 0)}
+                      </p>
+                      <p className="text-xs text-slate-500">Capacity</p>
+                    </div>
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-1 text-slate-400 mb-1">
+                        <DollarSign className="w-3.5 h-3.5" />
+                      </div>
+                      <p className="text-lg font-bold text-slate-900">
+                        {minPrice > 0
+                          ? minPrice === maxPrice
+                            ? `$${minPrice}`
+                            : `$${minPrice}+`
+                          : 'N/A'}
+                      </p>
+                      <p className="text-xs text-slate-500">From/night</p>
                     </div>
                   </div>
-                );
-              })
-            ) : (
-              <div className="col-span-full">
-                <div className="bg-white rounded-3xl shadow-xl p-16 text-center border-2 border-dashed border-slate-300">
-                  <div className="max-w-md mx-auto">
-                    <div className="w-24 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <Building2 className="w-12 h-12 text-indigo-600" />
+
+                  {/* Discount */}
+                  {discount > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-200">
+                      <Percent className="w-3.5 h-3.5 text-green-600" />
+                      <span className="text-sm font-medium text-green-700">
+                        {discount}% partner discount
+                      </span>
                     </div>
-                    <h3 className="text-2xl font-bold text-slate-900 mb-3">
-                      {isHotelManager ? 'No Hotel Assigned' : 'No Hotels Yet'}
-                    </h3>
-                    <p className="text-slate-600 mb-8 text-lg">
-                      {isHotelManager
-                        ? 'Contact support or admin to assign a hotel to your account.'
-                        : 'Start building your portfolio by adding your first property!'}
-                    </p>
+                  )}
+
+                  {/* Amenities */}
+                  {amenities.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {amenities.slice(0, 5).map((amenity, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded-md font-medium capitalize"
+                        >
+                          {typeof amenity === 'string'
+                            ? amenity
+                            : amenity?.name || ''}
+                        </span>
+                      ))}
+                      {amenities.length > 5 && (
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-xs rounded-md font-medium">
+                          +{amenities.length - 5}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Owner Info */}
+                  {hotel.owner && (
+                    <div className="pt-3 border-t border-slate-100 flex items-center gap-3">
+                      {hotel.owner.profileImageUrl ? (
+                        <img
+                          src={hotel.owner.profileImageUrl}
+                          alt={hotel.owner.firstName}
+                          className="w-8 h-8 rounded-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
+                          {(hotel.owner.firstName?.[0] || '') +
+                            (hotel.owner.lastName?.[0] || '')}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate">
+                          {[hotel.owner.firstName, hotel.owner.lastName]
+                            .filter(Boolean)
+                            .join(' ') || 'Owner'}
+                        </p>
+                        <p className="text-xs text-slate-500 truncate">
+                          {hotel.owner.email || ''}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="pt-3 border-t border-slate-100 flex gap-2">
+                    <button
+                      onClick={() => navigate(`/hotels/edit/${id}`)}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                      Edit
+                    </button>
                     {!isHotelManager && (
                       <button
-                        onClick={() => navigate('/add-hotel')}
-                        className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-2xl transition-all hover:scale-105 inline-flex items-center gap-3 font-bold text-lg"
+                        onClick={() => handleDeleteClick(hotel)}
+                        className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors"
                       >
-                        <Plus className="w-6 h-6" /> Add Your First Hotel
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete
                       </button>
                     )}
                   </div>
                 </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Empty State */
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+          <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">
+            {isHotelManager ? 'No Hotel Assigned' : 'No Hotels Yet'}
+          </h3>
+          <p className="text-slate-500 text-sm mb-6">
+            {isHotelManager
+              ? 'Contact support or admin to assign a hotel to your account.'
+              : 'Start building your portfolio by adding your first property.'}
+          </p>
+          {!isHotelManager && (
+            <button
+              onClick={() => navigate('/add-hotel')}
+              className="px-5 py-2.5 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800 transition-colors inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Your First Hotel
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteModal && hotelToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={() => {
+              setShowDeleteModal(false);
+              setHotelToDelete(null);
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+            >
+              <div className="text-center">
+                <div className="mx-auto flex items-center justify-center h-14 w-14 rounded-full bg-red-100 mb-4">
+                  <Trash2 className="h-6 w-6 text-red-600" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">
+                  Delete Hotel?
+                </h3>
+                <p className="text-slate-600 text-sm mb-1">
+                  Are you sure you want to delete{' '}
+                  <span className="font-semibold text-slate-900">
+                    {hotelToDelete.name || hotelToDelete.hotelName || 'this hotel'}
+                  </span>
+                  ?
+                </p>
+                <p className="text-xs text-red-500 font-medium">
+                  This action cannot be undone. All rooms and data will be lost.
+                </p>
               </div>
-            )}
-          </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setHotelToDelete(null);
+                  }}
+                  className="flex-1 px-5 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 font-medium text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteConfirm}
+                  disabled={loading}
+                  className="flex-1 px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
     </div>
   );
 };

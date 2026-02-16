@@ -267,16 +267,7 @@ export const Login = () => {
           </div>
         </div>
 
-        {/* Test Credentials Helper */}
-        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-xs">
-          <p className="font-semibold text-blue-900 mb-2">Test Credentials:</p>
-          <p className="text-blue-800">
-            <strong>Owner:</strong> fardheen.ahmad@hotelgolok.com / keytels@123
-          </p>
-          <p className="text-blue-800 mt-1">
-            <strong>Manager:</strong> jane.manager33 / Secret123!
-          </p>
-        </div>
+    
       </motion.div>
     </div>
   );

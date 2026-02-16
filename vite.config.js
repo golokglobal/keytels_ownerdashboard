@@ -13,7 +13,7 @@ export default defineConfig({
   },
 
   server: {
-    port: 5173,           // ← changed to standard Vite port (optional but cleaner)
+         // ← changed to standard Vite port (optional but cleaner)
 
     proxy: {
       // ───────────────────────────────────────────────
