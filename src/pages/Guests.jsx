@@ -11,8 +11,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { Loader } from '../components/common/Loader';
-import { setGuests, setLoading, setError } from '../store/slices/guestSlice';
-import { fetchGuests } from '../api/guests';
+import { loadGuests } from '../store/slices/guestSlice';
 
 export const Guests = () => {
   const dispatch = useDispatch();
@@ -25,20 +24,9 @@ export const Guests = () => {
 
   useEffect(() => {
     if (hotelId) {
-      loadGuests();
+      dispatch(loadGuests(hotelId));
     }
   }, [hotelId]);
-
-  const loadGuests = async () => {
-    dispatch(setLoading(true));
-    try {
-      const guestList = await fetchGuests(hotelId);
-      dispatch(setGuests(guestList));
-    } catch (err) {
-      console.error('Failed to load guests:', err);
-      dispatch(setError('Failed to load guests'));
-    }
-  };
 
   const getGuestName = (guest) => {
     const first = guest.firstName || '';

@@ -21,20 +21,23 @@ export default defineConfig({
       // Most important: Authentication & staff endpoints on port 8083
       // ───────────────────────────────────────────────
       '/api/owners': {
-        target: 'http://localhost:8083',
+   //  target: 'http://localhost:8083',
+target: 'https://desiney.berymo.com', // ← adjust to correct auth server if needed
         changeOrigin: true,
         secure: false,
       },
 
       '/api/staff': {
-        target: 'http://localhost:8083',
-        changeOrigin: true,
+      //  target: 'http://localhost:8083',
+        target: 'https://desiney.berymo.com', // ← adjust to correct auth server if needed
+      changeOrigin: true,
         secure: false,
         rewrite: (path) => path, // keeps /api/staff/...
       },
 
       '/api/users': {
-        target: 'http://localhost:8083', // or 8080 — adjust based on where /users/register lives
+      //  target: 'http://localhost:8083', // or 8080 — adjust based on where /users/register lives
+       target: 'https://desiney.berymo.com', // ← adjust to correct auth server if needed
         changeOrigin: true,
         secure: false,
       },
@@ -43,45 +46,52 @@ export default defineConfig({
       // Other specific prefixes (keep or adjust ports)
       // ───────────────────────────────────────────────
       '/api/partneredhotel': {
-        target: 'http://localhost:8084',
+       // target: 'http://localhost:8084',
+        target: 'https://desiney.berymo.com',
         changeOrigin: true,
         secure: false,
       },
 
       '/api/hotels': {
-        target: 'http://localhost:8084',
+       // target: 'http://localhost:8084',
+        target: 'https://desiney.berymo.com',
         changeOrigin: true,
         secure: false,
       },
 
       '/api/bookings': {
-        target: 'http://localhost:8084',
+       // target: 'http://localhost:8084',
+        target: 'https://desiney.berymo.com',
         changeOrigin: true,
         secure: false,
       },
 
       '/partneredhotel': {   // non-api version if frontend ever calls it this way
-        target: 'http://localhost:8084',
+       // target: 'http://localhost:8084',
+        target: 'https://desiney.berymo.com',
         changeOrigin: true,
         secure: false,
       },
 
       '/users/admin': {
-        target: 'http://localhost:8082',
+       // target: 'http://localhost:8082',
+        target: 'https://desiney.berymo.com',
         changeOrigin: true,
         secure: false,
       },
 
       // If you have /auth endpoints (some apps use /auth/login instead of /api/...)
       '/auth': {
-        target: 'http://localhost:8083', // ← adjust to correct auth server
+       // target: 'http://localhost:8083', // ← adjust to correct auth server
+        target: 'https://desiney.berymo.com', // ← adjust to correct auth server if needed
         changeOrigin: true,
         secure: false,
       },
 
       // Generic fallback for anything else under /api (MUST be last)
       '/api': {
-        target: 'http://localhost:8080', // or 8083 — choose the most common one
+        //target: 'http://localhost:8080', // or 8083 — choose the most common one
+        target: 'https://desiney.berymo.com', // ← adjust to correct server if needed
         changeOrigin: true,
         secure: false,
       },

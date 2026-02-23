@@ -6,42 +6,16 @@ import { DataTable } from "../components/shared/DataTable";
 import { StatCard } from "../components/shared/StatCard";
 import { Loader } from "../components/common/Loader";
 
-import {
-  setInvoices,
-  setPayments,
-  setLoading,
-  setError,
-} from "../store/slices/financialSlice";
-
-import { fetchInvoices, fetchPayments } from "../api/financials";
+import { loadInvoices, loadPayments } from "../store/slices/financialSlice";
 
 export const Financials = () => {
   const dispatch = useDispatch();
   const { invoices, payments, loading } = useSelector((s) => s.financials);
 
   useEffect(() => {
-    loadData();
+    dispatch(loadInvoices());
+    dispatch(loadPayments());
   }, []);
-
-  const loadData = async () => {
-    dispatch(setLoading(true));
-    dispatch(setError(null));
-
-    try {
-      const [invoicesRes, paymentsRes] = await Promise.all([
-        fetchInvoices(),
-        fetchPayments(),
-      ]);
-
-      dispatch(setInvoices(invoicesRes?.invoices || []));
-      dispatch(setPayments(paymentsRes?.payments || []));
-    } catch (err) {
-      console.error(err);
-      dispatch(setError("Failed to load financial data"));
-    } finally {
-      dispatch(setLoading(false));
-    }
-  };
 
   const invoiceColumns = [
     { header: "Invoice ID", accessor: "id" },

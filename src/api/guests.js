@@ -5,7 +5,7 @@ import api from '../config/axiosConfig';
  * with their booking stats.
  */
 export const fetchGuests = async (hotelId) => {
-  const response = await api.get(`/api/hotels/${hotelId}/bookings`);
+  const response = await api.get(`/hotels/${hotelId}/bookings`);
   const bookings = response.data;
 
   // Group bookings by guestId to build unique guest list

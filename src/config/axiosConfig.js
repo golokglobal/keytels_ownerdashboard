@@ -2,7 +2,7 @@ import axios from "axios";
 
 // Axios instance configuration
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
   timeout: 15000,
   headers: {
     Accept: "application/json",
@@ -23,11 +23,11 @@ api.interceptors.request.use(
 
     // Public (no-auth) endpoints
     const publicEndpoints = [
-      "/api/staff/login",
-      "/api/owners/login",
-      "/api/users/register",
-      "/api/users/forgot-password",
-      "/api/users/reset-password",
+      "/staff/login",
+      "/owners/login",
+      "/users/register",
+      "/users/forgot-password",
+      "/users/reset-password",
     ];
 
     const isPublicEndpoint = publicEndpoints.some((endpoint) =>
@@ -59,11 +59,11 @@ api.interceptors.response.use(
     const url = error.config?.url || "";
 
     const authEndpoints = [
-      "/api/staff/login",
-      "/api/owners/login",
-      "/api/users/register",
-      "/api/users/forgot-password",
-      "/api/users/reset-password",
+      "/staff/login",
+      "/owners/login",
+      "/users/register",
+      "/users/forgot-password",
+      "/users/reset-password",
     ];
 
     const isAuthEndpoint = authEndpoints.some((endpoint) =>

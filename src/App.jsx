@@ -5,7 +5,6 @@ import { MainLayout } from './components/Layout/MainLayout';
 import { PrivateRoute } from './components/Layout/PrivateRoute';
 import { Login } from './pages/Auth/Login';
 import { OwnerLogin } from './pages/Auth/OwnerLogin';
-import { Register } from './pages/Auth/Register';
 import { ForgotPassword } from './pages/Auth/ForgotPassword';
 import { Dashboard } from './pages/Dashboard';
 import { Bookings } from './pages/Bookings';
@@ -38,7 +37,6 @@ function App() {
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/owner-login" element={<OwnerLogin />} />
-        <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* Protected Routes */}
@@ -69,6 +67,9 @@ function App() {
 
 
         </Route>
+
+        {/* Redirect register to login */}
+        <Route path="/register" element={<Navigate to="/login" replace />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

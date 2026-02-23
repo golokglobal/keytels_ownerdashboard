@@ -1,4 +1,17 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { fetchGuests } from '../../api/guests';
+
+export const loadGuests = createAsyncThunk(
+  'guests/loadGuests',
+  async (hotelId, { rejectWithValue }) => {
+    try {
+      const guests = await fetchGuests(hotelId);
+      return guests;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to load guests');
+    }
+  }
+);
 
 const initialState = {
   guests: [],
@@ -31,6 +44,21 @@ const guestSlice = createSlice({
       state.error = action.payload;
       state.loading = false;
     },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(loadGuests.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(loadGuests.fulfilled, (state, action) => {
+        state.loading = false;
+        state.guests = action.payload;
+      })
+      .addCase(loadGuests.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
   },
 });
 

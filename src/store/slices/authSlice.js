@@ -43,7 +43,7 @@ export const signinUser = createAsyncThunk(
   async ({ username, password, role }, { rejectWithValue }) => {
     try {
       // All staff (including managers) use the same login endpoint
-      const endpoint = "/api/staff/login";
+      const endpoint = "/staff/login";
 
       console.log("[SIGNIN] Endpoint:", endpoint, "| Username:", username, "| Role:", role);
 
@@ -67,7 +67,7 @@ export const signinOwner = createAsyncThunk(
   async ({ username, password }, { rejectWithValue }) => {
     try {
       // Hotel owners use a separate login endpoint
-      const endpoint = "/api/owners/login";
+      const endpoint = "/owners/login";
 
       console.log("[OWNER SIGNIN] Endpoint:", endpoint, "| Username:", username);
 

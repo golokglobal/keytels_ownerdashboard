@@ -67,7 +67,7 @@ export const loginApi = async (endpoint, payload) => {
 
 export const registerApi = async (userData) => {
   try {
-    const response = await api.post('/api/users/register', userData);
+    const response = await api.post('/users/register', userData);
     return {
       success: true,
       user: response.data.user,
@@ -80,7 +80,7 @@ export const registerApi = async (userData) => {
 
 export const forgotPasswordApi = async (email) => {
   try {
-    const response = await api.post('/api/users/forgot-password', { email });
+    const response = await api.post('/users/forgot-password', { email });
     return {
       success: true,
       message: response.data.message || 'Password reset link sent to your email',
@@ -94,7 +94,7 @@ export const logoutApi = async () => {
   try {
     const refreshToken = localStorage.getItem('refreshToken');
     if (refreshToken) {
-      await api.post('/api/users/logout', { refreshToken });
+      await api.post('/users/logout', { refreshToken });
     }
   } catch (error) {
     console.error('Logout API error:', error);
@@ -106,7 +106,7 @@ export const logoutApi = async () => {
 
 export const getUserByUsername = async (username) => {
   try {
-    const response = await api.get(`/api/users/username/${username}`);
+    const response = await api.get(`/users/username/${username}`);
     return { success: true, user: response.data };
   } catch (error) {
     throw new Error(error.response?.data?.message || 'User not found');
@@ -115,7 +115,7 @@ export const getUserByUsername = async (username) => {
 
 export const getUserByEmail = async (email) => {
   try {
-    const response = await api.get(`/api/users/email/${email}`);
+    const response = await api.get(`/users/email/${email}`);
     return { success: true, user: response.data };
   } catch (error) {
     throw new Error(error.response?.data?.message || 'User not found');
@@ -124,7 +124,7 @@ export const getUserByEmail = async (email) => {
 
 export const getTokenInfo = async () => {
   try {
-    const response = await api.get('/api/users/token-info');
+    const response = await api.get('/users/token-info');
     return { success: true, tokenInfo: response.data };
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Failed to get token info');
@@ -151,7 +151,7 @@ export const getUserRole = () => localStorage.getItem('userRole');
 
 export const getProfileApi = async () => {
   try {
-    const response = await api.get('/api/users/profile');
+    const response = await api.get('/users/profile');
     localStorage.setItem('user', JSON.stringify(response.data));
     return { success: true, user: response.data };
   } catch (error) {
@@ -161,7 +161,7 @@ export const getProfileApi = async () => {
 
 export const updateProfileApi = async (profileData) => {
   try {
-    const response = await api.put('/api/users/profile', profileData);
+    const response = await api.put('/users/profile', profileData);
     localStorage.setItem('user', JSON.stringify(response.data));
     return { success: true, user: response.data };
   } catch (error) {
@@ -178,7 +178,7 @@ export const uploadProfilePhotoApi = async (photoUrl) => {
       throw new Error('Please use an actual image URL (http:// or https://), not base64');
     }
 
-    const response = await api.put('/api/users/profile/photo', null, {
+    const response = await api.put('/users/profile/photo', null, {
       params: { photoUrl },
     });
 
@@ -189,9 +189,14 @@ export const uploadProfilePhotoApi = async (photoUrl) => {
   }
 };
 
+export const getOwnerWallet = async () => {
+  const response = await api.get('/owners/wallet');
+  return response.data;
+};
+
 export const changePasswordApi = async (currentPassword, newPassword, confirmPassword) => {
   try {
-    const response = await api.put('/api/users/change-password', {
+    const response = await api.put('/users/change-password', {
       currentPassword,
       newPassword,
       confirmPassword,

@@ -6,7 +6,7 @@ import { useDispatch } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Hotel, User, Lock, ArrowRight, Shield, Users, Crown, Eye, EyeOff } from 'lucide-react';
-import { signinUser, signinOwner } from '../../store/slices/authSlice';
+import { signinUser, signinOwner } from '../../store/slices/userSlice';
 import { Loader } from '../../components/common/Loader';
 
 export const Login = () => {
@@ -63,6 +63,27 @@ export const Login = () => {
         const roleFromServer = user.role.toUpperCase().trim();
         console.log('✅ Login success → Role from server:', roleFromServer);
 
+        // Validate selected role matches server role
+        const roleMap = {
+          owner: 'HOTEL_OWNER',
+          manager: 'HOTEL_MANAGER',
+          staff: 'HOTEL_STAFF',
+        };
+        const expectedRole = roleMap[formData.role];
+
+        if (roleFromServer !== expectedRole) {
+          // Clear any stored auth since this login attempt is rejected
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('userRole');
+          localStorage.removeItem('hotelId');
+          localStorage.removeItem('hotelIds');
+          setError(`Access denied. Your account does not have ${formData.role} privileges.`);
+          return;
+        }
+
         // Small delay to ensure Redux state is fully updated before navigation
         await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -70,16 +91,15 @@ export const Login = () => {
         if (roleFromServer === 'HOTEL_OWNER') {
           console.log('🔀 Redirecting to owner dashboard...');
           navigate('/dashboard', { replace: true });
-        } else if (roleFromServer === 'HOTELMANAGER') {
+        } else if (roleFromServer === 'HOTEL_MANAGER') {
           console.log('🔀 Redirecting to manager dashboard...');
           navigate('/manager-dashboard', { replace: true });
-        } else if (roleFromServer === 'STAFF') {
+        } else if (roleFromServer === 'HOTEL_STAFF') {
           console.log('🔀 Redirecting to staff dashboard...');
           navigate('/staff-dashboard', { replace: true });
         } else {
           console.warn('⚠️ Unknown role:', roleFromServer);
           setError('Unknown role. Contact support.');
-          navigate('/dashboard', { replace: true });
         }
       } else {
         // Handle rejected action
@@ -257,14 +277,6 @@ export const Login = () => {
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-slate-200 space-y-3">
-            <p className="text-center text-sm text-slate-600">
-              Don't have an account?{' '}
-              <Link to="/register" className="text-blue-600 hover:text-blue-800 font-medium">
-                Sign up
-              </Link>
-            </p>
-          </div>
         </div>
 
     
