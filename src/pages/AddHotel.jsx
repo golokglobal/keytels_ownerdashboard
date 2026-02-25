@@ -23,6 +23,7 @@ import {
   Plus,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { ConfirmModal } from "../components/common/ConfirmModal";
 
 export const AddHotel = () => {
   const dispatch = useDispatch();
@@ -64,6 +65,8 @@ export const AddHotel = () => {
   const [existingRooms, setExistingRooms] = useState([]);
   const [editingRoom, setEditingRoom] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [confirmDeleteHotel, setConfirmDeleteHotel] = useState(false);
+  const [confirmDeleteRoom, setConfirmDeleteRoom] = useState({ open: false, roomId: null });
 
   const [roomData, setRoomData] = useState({
     roomType: "",
@@ -208,15 +211,12 @@ export const AddHotel = () => {
     }));
   };
 
-  const handleDeleteHotel = async () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this hotel? This action cannot be undone."
-      )
-    ) {
-      return;
-    }
+  const handleDeleteHotel = () => {
+    setConfirmDeleteHotel(true);
+  };
 
+  const confirmHotelDelete = async () => {
+    setConfirmDeleteHotel(false);
     try {
       await dispatch(deleteHotel(hotelId)).unwrap();
       toast.success("Hotel deleted successfully");
@@ -289,13 +289,14 @@ export const AddHotel = () => {
     }
   };
 
-  const handleDeleteExistingRoom = async (roomId) => {
+  const handleDeleteExistingRoom = (roomId) => {
     console.log("🗑️ DELETE ROOM HANDLER CALLED - Room ID:", roomId);
+    setConfirmDeleteRoom({ open: true, roomId });
+  };
 
-    if (!window.confirm("Are you sure you want to delete this room?")) {
-      console.log("❌ User cancelled deletion");
-      return;
-    }
+  const confirmRoomDelete = async () => {
+    const { roomId } = confirmDeleteRoom;
+    setConfirmDeleteRoom({ open: false, roomId: null });
 
     if (!roomId) {
       console.error("❌ No room ID provided");
@@ -1163,6 +1164,27 @@ export const AddHotel = () => {
           {loading || submitting ? "Creating Hotel..." : "Create Hotel"}
         </button>
       </form>
+
+      {/* Delete Hotel Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmDeleteHotel}
+        title="Delete Hotel"
+        message="Are you sure you want to delete this hotel? This action cannot be undone."
+        confirmLabel="Delete Hotel"
+        loading={loading}
+        onConfirm={confirmHotelDelete}
+        onCancel={() => setConfirmDeleteHotel(false)}
+      />
+
+      {/* Delete Room Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmDeleteRoom.open}
+        title="Delete Room"
+        message="Are you sure you want to delete this room? This action cannot be undone."
+        confirmLabel="Delete Room"
+        onConfirm={confirmRoomDelete}
+        onCancel={() => setConfirmDeleteRoom({ open: false, roomId: null })}
+      />
     </div>
   );
 };

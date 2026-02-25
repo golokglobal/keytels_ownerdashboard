@@ -11,7 +11,7 @@ import {
   selectReviewSummary,
   selectReviewsLoading,
 } from '../store/slices/reviewSlice';
-import { Loader } from '../components/common/Loader';
+import { ReviewsSkeleton } from '../components/common/Skeleton';
 
 export const Reviews = () => {
   const dispatch = useDispatch();
@@ -24,7 +24,6 @@ export const Reviews = () => {
 
   useEffect(() => {
     if (hotelId) {
-      console.log('[Reviews] Loading reviews for hotel:', hotelId);
       dispatch(fetchHotelReviews(hotelId));
       dispatch(fetchHotelReviewSummary(hotelId));
     } else {
@@ -63,7 +62,7 @@ export const Reviews = () => {
   });
 
   if (loading && reviews.length === 0) {
-    return <Loader fullScreen />;
+    return <ReviewsSkeleton />;
   }
 
   return (
@@ -204,7 +203,7 @@ export const Reviews = () => {
                       ))}
                     </div>
                     <span className="text-lg font-bold text-slate-900">
-                      {review.overallRating}.0
+                      {Number(review.overallRating).toFixed(1)}
                     </span>
                   </div>
                   <p className="text-slate-700 text-lg mb-3">{review.overallComment}</p>

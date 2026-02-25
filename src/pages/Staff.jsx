@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 import { Users, Plus, Edit, Trash2, X, Mail, Shield, Building } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { DataTable } from '../components/shared/DataTable';
-import { Loader } from '../components/common/Loader';
+import { StaffSkeleton } from '../components/common/Skeleton';
+import { ConfirmModal } from '../components/common/ConfirmModal';
 import {
   fetchHotelStaff,
   createStaffMember,
@@ -24,6 +25,7 @@ export const Staff = () => {
 
   const [showModal, setShowModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState({ open: false, staffId: null, staffName: '' });
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -120,11 +122,13 @@ export const Staff = () => {
     }
   };
 
-  const handleDelete = async (staffId, staffName) => {
-    if (!window.confirm(`Are you sure you want to delete ${staffName}?`)) {
-      return;
-    }
+  const handleDelete = (staffId, staffName) => {
+    setConfirmDelete({ open: true, staffId, staffName });
+  };
 
+  const confirmDeleteStaff = async () => {
+    const { staffId } = confirmDelete;
+    setConfirmDelete({ open: false, staffId: null, staffName: '' });
     try {
       await dispatch(deleteStaffMember(staffId)).unwrap();
       toast.success('Staff member deleted successfully');
@@ -191,7 +195,7 @@ export const Staff = () => {
   ];
 
   if (loading && staff.length === 0) {
-    return <Loader fullScreen />;
+    return <StaffSkeleton />;
   }
 
   return (
@@ -230,6 +234,16 @@ export const Staff = () => {
 
       {/* Table */}
       <DataTable columns={columns} data={staff} />
+
+      {/* Delete Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmDelete.open}
+        title="Delete Staff Member"
+        message={`Are you sure you want to delete ${confirmDelete.staffName}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={confirmDeleteStaff}
+        onCancel={() => setConfirmDelete({ open: false, staffId: null, staffName: '' })}
+      />
 
       {/* Create/Edit Modal */}
       {showModal && (

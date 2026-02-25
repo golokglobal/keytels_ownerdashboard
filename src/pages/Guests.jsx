@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -10,7 +10,7 @@ import {
   LogIn,
   LogOut,
 } from 'lucide-react';
-import { Loader } from '../components/common/Loader';
+import { GuestsSkeleton } from '../components/common/Skeleton';
 import { loadGuests } from '../store/slices/guestSlice';
 
 export const Guests = () => {
@@ -66,39 +66,43 @@ export const Guests = () => {
     PENDING: 'Pending',
   };
 
-  // Filter guests
-  const filteredGuests = guests.filter((guest) => {
-    const name = getGuestName(guest).toLowerCase();
-    const email = (guest.email || '').toLowerCase();
-    const phone = (guest.phoneNumber || '').toLowerCase();
-    const matchesSearch =
-      !searchQuery ||
-      name.includes(searchQuery.toLowerCase()) ||
-      email.includes(searchQuery.toLowerCase()) ||
-      phone.includes(searchQuery.toLowerCase()) ||
-      guest.guestId.toLowerCase().includes(searchQuery.toLowerCase());
+  // Compute status once per guest — avoids repeated sort/spread in filter + stats
+  const guestsWithStatus = useMemo(() =>
+    guests.map((guest) => ({ ...guest, _status: getGuestStatus(guest) })),
+    [guests]
+  );
 
-    const guestStatus = getGuestStatus(guest);
-    const matchesStatus = statusFilter === 'all' || guestStatus === statusFilter;
+  const filteredGuests = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return guestsWithStatus.filter((guest) => {
+      const matchesSearch =
+        !searchQuery ||
+        getGuestName(guest).toLowerCase().includes(q) ||
+        (guest.email || '').toLowerCase().includes(q) ||
+        (guest.phoneNumber || '').toLowerCase().includes(q) ||
+        (guest.guestId || '').toLowerCase().includes(q);
+      const matchesStatus = statusFilter === 'all' || guest._status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [guestsWithStatus, searchQuery, statusFilter]);
 
-    return matchesSearch && matchesStatus;
-  });
-
-  // Stats
-  const totalGuests = guests.length;
-  const bookedCount = guests.filter((g) => getGuestStatus(g) === 'BOOKED').length;
-  const checkedInCount = guests.filter((g) => getGuestStatus(g) === 'CHECKED_IN').length;
-  const checkedOutCount = guests.filter((g) => getGuestStatus(g) === 'CHECKED_OUT').length;
-
-  const statCards = [
-    { label: 'Total Guests', value: totalGuests, color: 'text-slate-900' },
-    { label: 'Booked', value: bookedCount, color: 'text-blue-600' },
-    { label: 'Checked In', value: checkedInCount, color: 'text-green-600' },
-    { label: 'Checked Out', value: checkedOutCount, color: 'text-slate-500' },
-  ];
+  const statCards = useMemo(() => {
+    let booked = 0, checkedIn = 0, checkedOut = 0;
+    for (const g of guestsWithStatus) {
+      if (g._status === 'BOOKED') booked++;
+      else if (g._status === 'CHECKED_IN') checkedIn++;
+      else if (g._status === 'CHECKED_OUT') checkedOut++;
+    }
+    return [
+      { label: 'Total Guests', value: guestsWithStatus.length, color: 'text-slate-900' },
+      { label: 'Booked', value: booked, color: 'text-blue-600' },
+      { label: 'Checked In', value: checkedIn, color: 'text-green-600' },
+      { label: 'Checked Out', value: checkedOut, color: 'text-slate-500' },
+    ];
+  }, [guestsWithStatus]);
 
   if (loading) {
-    return <Loader fullScreen />;
+    return <GuestsSkeleton />;
   }
 
   return (
@@ -192,7 +196,7 @@ export const Guests = () => {
       {/* Guests Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredGuests.map((guest, index) => {
-          const status = getGuestStatus(guest);
+          const status = guest._status;
           return (
             <motion.div
               key={guest.guestId}

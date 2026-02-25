@@ -1,7 +1,7 @@
 // ============================================================================
 // FILE 3: src/api/auth.js
 // ============================================================================
-import api from '../config/axiosConfig';
+import api, { setTokenCache, clearTokenCache } from '../config/axiosConfig';
 
 export const loginApi = async (endpoint, payload) => {
   try {
@@ -25,6 +25,7 @@ export const loginApi = async (endpoint, payload) => {
     }
 
     // Store session
+    setTokenCache(accessToken);
     localStorage.setItem("accessToken", accessToken);
     localStorage.setItem("refreshToken", refreshToken || "");
     localStorage.setItem("user", JSON.stringify(user));
@@ -99,6 +100,7 @@ export const logoutApi = async () => {
   } catch (error) {
     console.error('Logout API error:', error);
   } finally {
+    clearTokenCache();
     localStorage.clear();
     return { success: true };
   }

@@ -6,9 +6,7 @@ import * as api from "../../api/partneredHotelsApi";
 export const fetchAllOwnerHotels = createAsyncThunk(
   "partneredHotel/fetchAllOwnerHotels",
   async () => {
-    console.log("🔄 Fetching all hotels for owner");
     const response = await api.getAllOwnerHotels();
-    console.log("✅ Fetch All Owner Hotels Response:", response);
     return response;
   }
 );
@@ -16,9 +14,7 @@ export const fetchAllOwnerHotels = createAsyncThunk(
 export const fetchHotelById = createAsyncThunk(
   "partneredHotel/fetchHotelById",
   async (hotelId) => {
-    console.log("🔄 Fetching hotel by ID:", hotelId);
     const response = await api.getPartneredHotelById(hotelId);
-    console.log("✅ Fetch Hotel By ID Response:", response);
     return response;
   }
 );
@@ -26,9 +22,7 @@ export const fetchHotelById = createAsyncThunk(
 export const createHotel = createAsyncThunk(
   "partneredHotel/createHotel",
   async (data) => {
-    console.log("🔄 Creating hotel with data:", JSON.stringify(data, null, 2));
     const response = await api.createPartneredHotel(data);
-    console.log("✅ Create Hotel Response:", JSON.stringify(response, null, 2));
     return response;
   }
 );
@@ -36,9 +30,7 @@ export const createHotel = createAsyncThunk(
 export const updateHotel = createAsyncThunk(
   "partneredHotel/updateHotel",
   async ({ hotelId, data }) => {
-    console.log("🔄 Updating hotel ID:", hotelId, "with data:", JSON.stringify(data, null, 2));
     const response = await api.updatePartneredHotel(hotelId, data);
-    console.log("✅ Update Hotel Response:", JSON.stringify(response, null, 2));
     return response;
   }
 );
@@ -46,9 +38,7 @@ export const updateHotel = createAsyncThunk(
 export const deleteHotel = createAsyncThunk(
   "partneredHotel/deleteHotel",
   async (hotelId) => {
-    console.log("🔄 Deleting hotel ID:", hotelId);
     await api.deletePartneredHotel(hotelId);
-    console.log("✅ Delete Hotel Success - Hotel ID:", hotelId);
     return hotelId;
   }
 );
@@ -58,9 +48,7 @@ export const createHotelRoom = createAsyncThunk(
   "partneredHotel/createRoom",
   async ({ hotelId, data }, { rejectWithValue }) => {
     try {
-      console.log("🔄 Creating room for hotel ID:", hotelId, "with data:", JSON.stringify(data, null, 2));
       const room = await api.createRoom(hotelId, data);
-      console.log("✅ Create Room Response:", JSON.stringify(room, null, 2));
       return { hotelId, room };
     } catch (error) {
       console.error("❌ Error creating room:", error);
@@ -75,7 +63,6 @@ export const createHotelRoom = createAsyncThunk(
          status === 403 ? "Forbidden – you don't have permission" :
          "Failed to create room");
 
-      console.error("Error details:", { status, response: errData });
       return rejectWithValue(friendlyMessage);
     }
   }
@@ -84,9 +71,7 @@ export const createHotelRoom = createAsyncThunk(
 export const fetchRoomsByHotel = createAsyncThunk(
   "partneredHotel/fetchRoomsByHotel",
   async (hotelId) => {
-    console.log("🔄 Fetching rooms for hotel ID:", hotelId);
     const rooms = await api.getRoomsByHotel(hotelId);
-    console.log("✅ Fetch Rooms Response:", JSON.stringify(rooms, null, 2));
     return { hotelId, rooms };
   }
 );
@@ -94,9 +79,7 @@ export const fetchRoomsByHotel = createAsyncThunk(
 export const fetchRoomById = createAsyncThunk(
   "partneredHotel/fetchRoomById",
   async (roomId) => {
-    console.log("🔄 Fetching room by ID:", roomId);
     const response = await api.getRoomById(roomId);
-    console.log("✅ Fetch Room By ID Response:", JSON.stringify(response, null, 2));
     return response;
   }
 );
@@ -105,9 +88,7 @@ export const updateHotelRoom = createAsyncThunk(
   "partneredHotel/updateRoom",
   async ({ roomId, data }, { rejectWithValue }) => {
     try {
-      console.log("🔄 Updating room ID:", roomId, "with data:", JSON.stringify(data, null, 2));
       const response = await api.updateRoom(roomId, data);
-      console.log("✅ Update Room Response:", JSON.stringify(response, null, 2));
       return response;
     } catch (error) {
       const errData = error.response?.data;
@@ -121,9 +102,7 @@ export const deleteHotelRoom = createAsyncThunk(
   "partneredHotel/deleteRoom",
   async (roomId, { rejectWithValue }) => {
     try {
-      console.log("🔄 Deleting room ID:", roomId);
       await api.deleteRoom(roomId);
-      console.log("✅ Delete Room Success - Room ID:", roomId);
       return roomId;
     } catch (error) {
       const message = error.response?.data?.message || error.message || "Failed to delete room";
@@ -136,9 +115,7 @@ export const deleteHotelRoom = createAsyncThunk(
 export const fetchRoomImages = createAsyncThunk(
   "partneredHotel/fetchRoomImages",
   async (roomId) => {
-    console.log("🔄 Fetching images for room ID:", roomId);
     const images = await api.getRoomImages(roomId);
-    console.log("✅ Fetch Room Images Response:", images);
     return { roomId, images };
   }
 );
@@ -146,9 +123,7 @@ export const fetchRoomImages = createAsyncThunk(
 export const uploadRoomImage = createAsyncThunk(
   "partneredHotel/uploadRoomImage",
   async ({ roomId, formData }) => {
-    console.log("🔄 Uploading image for room ID:", roomId);
     const response = await api.uploadRoomImage(roomId, formData);
-    console.log("✅ Upload Room Image Response:", response);
     return { roomId, image: response };
   }
 );
@@ -156,9 +131,7 @@ export const uploadRoomImage = createAsyncThunk(
 export const deleteRoomImage = createAsyncThunk(
   "partneredHotel/deleteRoomImage",
   async ({ imageId, roomId }) => {
-    console.log("🔄 Deleting image ID:", imageId);
     await api.deleteRoomImage(imageId);
-    console.log("✅ Delete Room Image Success - Image ID:", imageId);
     return { imageId, roomId };
   }
 );
@@ -206,7 +179,6 @@ const partneredHotelSlice = createSlice({
       .addCase(fetchAllOwnerHotels.fulfilled, (state, action) => {
         state.loading = false;
         state.hotels = Array.isArray(action.payload) ? action.payload : [];
-        console.log("✅ Hotels loaded into state:", state.hotels.length);
       })
       .addCase(fetchAllOwnerHotels.rejected, (state, action) => {
         state.loading = false;
@@ -262,21 +234,22 @@ const partneredHotelSlice = createSlice({
         }
       })
       .addCase(updateHotelRoom.fulfilled, (state, action) => {
-        const roomIndex = state.hotelRooms.findIndex((r) => r.id === action.payload.id);
+        const updatedId = action.payload.roomId || action.payload.id;
+        const roomIndex = state.hotelRooms.findIndex((r) => (r.roomId || r.id) === updatedId);
         if (roomIndex !== -1) state.hotelRooms[roomIndex] = action.payload;
 
         if (state.selectedHotel?.rooms) {
-          const hotelRoomIndex = state.selectedHotel.rooms.findIndex((r) => r.id === action.payload.id);
+          const hotelRoomIndex = state.selectedHotel.rooms.findIndex((r) => (r.roomId || r.id) === updatedId);
           if (hotelRoomIndex !== -1) {
             state.selectedHotel.rooms[hotelRoomIndex] = action.payload;
           }
         }
       })
       .addCase(deleteHotelRoom.fulfilled, (state, action) => {
-        state.hotelRooms = state.hotelRooms.filter((r) => r.id !== action.payload);
+        state.hotelRooms = state.hotelRooms.filter((r) => (r.roomId || r.id) !== action.payload);
         if (state.selectedHotel?.rooms) {
           state.selectedHotel.rooms = state.selectedHotel.rooms.filter(
-            (r) => r.id !== action.payload
+            (r) => (r.roomId || r.id) !== action.payload
           );
         }
         delete state.roomImages[action.payload];

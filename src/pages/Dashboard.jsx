@@ -8,29 +8,101 @@ import {
   TrendingUp,
   Bed,
   Star,
-  Clock,
   ArrowRight,
-  CheckCircle,
   XCircle,
   LogIn,
   LogOut,
 } from 'lucide-react';
 import { StatCard } from '../components/shared/StatCard';
 import { DataTable } from '../components/shared/DataTable';
-import { Loader } from '../components/common/Loader';
+import { DashboardSkeleton } from '../components/common/Skeleton';
 import {
   fetchHotelBookings,
   fetchBookingSummary,
   fetchTodayCheckIns,
   fetchTodayCheckOuts,
   fetchHotelRevenue,
+  fetchHotelPayments,
+  selectPaymentsTotal,
 } from '../store/slices/bookingSlice';
 import { fetchDashboardReviews, fetchHotelReviewSummary } from '../store/slices/reviewSlice';
 
+const getGuestName = (booking) => {
+  if (booking.guest) {
+    const { firstName, lastName } = booking.guest;
+    if (firstName || lastName) {
+      return `${firstName || ''} ${lastName || ''}`.trim();
+    }
+    return 'Guest';
+  }
+  return booking.guestName || 'Guest';
+};
+
+const BOOKING_STATUS_CONFIG = {
+  BOOKED: { color: 'bg-green-100 text-green-700' },
+  CHECKED_IN: { color: 'bg-blue-100 text-blue-700' },
+  CHECKED_OUT: { color: 'bg-slate-100 text-slate-700' },
+  CANCELLED: { color: 'bg-red-100 text-red-700' },
+  PENDING: { color: 'bg-yellow-100 text-yellow-700' },
+};
+
+const PAYMENT_TEXT_COLORS = {
+  PAID: 'text-green-600',
+  PENDING: 'text-yellow-600',
+  FAILED: 'text-red-600',
+};
+
+const bookingColumns = [
+  {
+    header: 'Booking ID',
+    render: (row) => (
+      <span className="font-mono text-xs text-slate-600">
+        {row.bookingId?.substring(0, 8)}...
+      </span>
+    ),
+  },
+  {
+    header: 'Guest',
+    render: (row) => getGuestName(row),
+  },
+  {
+    header: 'Check-in',
+    render: (row) => new Date(row.checkInDate).toLocaleDateString(),
+  },
+  {
+    header: 'Check-out',
+    render: (row) => new Date(row.checkOutDate).toLocaleDateString(),
+  },
+  {
+    header: 'Status',
+    render: (row) => {
+      const config = BOOKING_STATUS_CONFIG[row.bookingStatus] || { color: 'bg-gray-100 text-gray-700' };
+      return (
+        <span className={`px-3 py-1 rounded-full text-xs font-medium ${config.color}`}>
+          {row.bookingStatus}
+        </span>
+      );
+    },
+  },
+  {
+    header: 'Payment',
+    render: (row) => (
+      <span className={`text-xs font-medium ${PAYMENT_TEXT_COLORS[row.paymentStatus] || 'text-gray-600'}`}>
+        {row.paymentStatus}
+      </span>
+    ),
+  },
+  {
+    header: 'Amount',
+    render: (row) => `$${row.totalAmount?.toLocaleString() || '0'}`,
+  },
+];
+
 export const Dashboard = () => {
   const dispatch = useDispatch();
-  const { bookings, todayCheckIns, todayCheckOuts, summary: bookingSummary, revenue } = useSelector((state) => state.bookings);
+  const { bookings, todayCheckIns, todayCheckOuts, summary: bookingSummary } = useSelector((state) => state.bookings);
   const { dashboardReviews, summary: reviewSummary } = useSelector((state) => state.reviews);
+  const paymentsTotal = useSelector(selectPaymentsTotal);
   const hotelId = useSelector((state) => state.user.hotelId);
   const [loading, setLoading] = useState(true);
 
@@ -55,6 +127,7 @@ export const Dashboard = () => {
         dispatch(fetchTodayCheckIns(hotelId)),
         dispatch(fetchTodayCheckOuts(hotelId)),
         dispatch(fetchHotelRevenue({ hotelId, fromDate, toDate })),
+        dispatch(fetchHotelPayments(hotelId)),
         dispatch(fetchDashboardReviews(hotelId)),
         dispatch(fetchHotelReviewSummary(hotelId)),
       ]);
@@ -65,81 +138,9 @@ export const Dashboard = () => {
     }
   };
 
-  // Helper to get guest display name
-  const getGuestName = (booking) => {
-    if (booking.guest) {
-      const { firstName, lastName } = booking.guest;
-      if (firstName || lastName) {
-        return `${firstName || ''} ${lastName || ''}`.trim();
-      }
-      return 'Guest';
-    }
-    return booking.guestName || 'Guest';
-  };
-
   if (loading) {
-    return <Loader fullScreen />;
+    return <DashboardSkeleton />;
   }
-
-  const bookingColumns = [
-    {
-      header: 'Booking ID',
-      render: (row) => (
-        <span className="font-mono text-xs text-slate-600">
-          {row.bookingId?.substring(0, 8)}...
-        </span>
-      )
-    },
-    {
-      header: 'Guest',
-      render: (row) => getGuestName(row)
-    },
-    {
-      header: 'Check-in',
-      render: (row) => new Date(row.checkInDate).toLocaleDateString(),
-    },
-    {
-      header: 'Check-out',
-      render: (row) => new Date(row.checkOutDate).toLocaleDateString(),
-    },
-    {
-      header: 'Status',
-      render: (row) => {
-        const statusConfig = {
-          BOOKED: { color: 'bg-green-100 text-green-700', icon: CheckCircle },
-          CHECKED_IN: { color: 'bg-blue-100 text-blue-700', icon: LogIn },
-          CHECKED_OUT: { color: 'bg-slate-100 text-slate-700', icon: LogOut },
-          CANCELLED: { color: 'bg-red-100 text-red-700', icon: XCircle },
-          PENDING: { color: 'bg-yellow-100 text-yellow-700', icon: Clock },
-        };
-        const config = statusConfig[row.bookingStatus] || { color: 'bg-gray-100 text-gray-700' };
-        return (
-          <span className={`px-3 py-1 rounded-full text-xs font-medium ${config.color}`}>
-            {row.bookingStatus}
-          </span>
-        );
-      },
-    },
-    {
-      header: 'Payment',
-      render: (row) => {
-        const colors = {
-          PAID: 'text-green-600',
-          PENDING: 'text-yellow-600',
-          FAILED: 'text-red-600',
-        };
-        return (
-          <span className={`text-xs font-medium ${colors[row.paymentStatus] || 'text-gray-600'}`}>
-            {row.paymentStatus}
-          </span>
-        );
-      },
-    },
-    {
-      header: 'Amount',
-      render: (row) => `$${row.totalAmount?.toLocaleString() || '0'}`,
-    },
-  ];
 
   return (
     <div className="space-y-8">
@@ -153,7 +154,7 @@ export const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Total Revenue"
-          value={`$${(revenue?.totalRevenue || 0).toLocaleString()}`}
+          value={`$${(paymentsTotal ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           icon={DollarSign}
           color="blue"
         />

@@ -1,5 +1,6 @@
 import { useDispatch, useSelector } from "react-redux";
 import { useEffect, useState } from "react";
+import { RoomsSkeleton } from "../components/common/Skeleton";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -31,6 +32,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { ConfirmModal } from "../components/common/ConfirmModal";
 
 // Normalize status values from API to display-friendly format
 const normalizeStatus = (status) => {
@@ -151,6 +153,7 @@ export const RoomsManagement = () => {
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedRoomForImages, setSelectedRoomForImages] = useState(null);
+  const [confirmDeleteImage, setConfirmDeleteImage] = useState({ open: false, imageId: null });
   const [imageFile, setImageFile] = useState(null);
 
   const [roomData, setRoomData] = useState({
@@ -366,6 +369,7 @@ export const RoomsManagement = () => {
         ),
         isAvailable: editingRoom.available ?? editingRoom.isAvailable ?? true,
         description: editingRoom.description || "",
+        totalRooms: Number(editingRoom.totalRooms) || 1,
       };
 
       if (editingRoom.size) updateData.size = editingRoom.size;
@@ -491,13 +495,14 @@ export const RoomsManagement = () => {
     }
   };
 
-  const handleDeleteImage = async (imageId) => {
-    const roomId =
-      selectedRoomForImages?.roomId || selectedRoomForImages?.id;
+  const handleDeleteImage = (imageId) => {
+    setConfirmDeleteImage({ open: true, imageId });
+  };
 
-    if (!window.confirm("Are you sure you want to delete this image?")) {
-      return;
-    }
+  const confirmImageDelete = async () => {
+    const { imageId } = confirmDeleteImage;
+    const roomId = selectedRoomForImages?.roomId || selectedRoomForImages?.id;
+    setConfirmDeleteImage({ open: false, imageId: null });
 
     try {
       await dispatch(deleteRoomImage({ imageId, roomId })).unwrap();
@@ -659,9 +664,7 @@ export const RoomsManagement = () => {
       {/* Rooms Grid */}
       {selectedHotelId ? (
         loading && rooms.length === 0 ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-900 border-t-transparent"></div>
-          </div>
+          <RoomsSkeleton />
         ) : rooms.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
             <BedDouble className="w-12 h-12 text-slate-300 mx-auto mb-4" />
@@ -1398,6 +1401,16 @@ export const RoomsManagement = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Delete Image Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmDeleteImage.open}
+        title="Delete Image"
+        message="Are you sure you want to delete this image? This action cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={confirmImageDelete}
+        onCancel={() => setConfirmDeleteImage({ open: false, imageId: null })}
+      />
 
       {/* Image Management Modal */}
       <AnimatePresence>

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
@@ -15,16 +15,32 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { DataTable } from '../components/shared/DataTable';
-import { Loader } from '../components/common/Loader';
+import { ConfirmModal } from '../components/common/ConfirmModal';
+import { BookingsSkeleton } from '../components/common/Skeleton';
 import {
   fetchHotelBookings,
   fetchBookingSummary,
-  fetchBookingById,
+  setSelectedBooking,
+  clearPaymentDetails,
   checkIn,
   checkOut,
   cancelBooking,
   fetchBookingPaymentDetails,
 } from '../store/slices/bookingSlice';
+
+const BOOKING_STATUS_COLORS = {
+  BOOKED: 'bg-green-100 text-green-700',
+  CHECKED_IN: 'bg-blue-100 text-blue-700',
+  CHECKED_OUT: 'bg-slate-100 text-slate-700',
+  CANCELLED: 'bg-red-100 text-red-700',
+  PENDING: 'bg-yellow-100 text-yellow-700',
+};
+
+const PAYMENT_STATUS_COLORS = {
+  PAID: 'bg-green-100 text-green-700',
+  PENDING: 'bg-yellow-100 text-yellow-700',
+  FAILED: 'bg-red-100 text-red-700',
+};
 
 export const Bookings = () => {
   const dispatch = useDispatch();
@@ -48,34 +64,27 @@ export const Bookings = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState(null);
+  const [confirmCancel, setConfirmCancel] = useState({ open: false, bookingId: null });
+
+  const loadBookings = useCallback(async () => {
+    if (!hotelId) return;
+    try {
+      const filters = {};
+      if (statusFilter !== 'all') filters.bookingStatus = statusFilter;
+      if (paymentFilter !== 'all') filters.paymentStatus = paymentFilter;
+      if (refundFilter !== 'all') filters.refundStatus = refundFilter;
+      await dispatch(fetchHotelBookings({ hotelId, filters })).unwrap();
+    } catch (error) {
+      toast.error('Failed to load bookings');
+    }
+  }, [hotelId, statusFilter, paymentFilter, refundFilter, dispatch]);
 
   useEffect(() => {
     if (hotelId) {
       loadBookings();
       dispatch(fetchBookingSummary(hotelId));
     }
-  }, [hotelId]);
-
-  // Reload when filters change
-  useEffect(() => {
-    if (hotelId) {
-      loadBookings();
-    }
-  }, [statusFilter, paymentFilter, refundFilter]);
-
-  const loadBookings = async () => {
-    try {
-      const filters = {};
-      if (statusFilter !== 'all') filters.bookingStatus = statusFilter;
-      if (paymentFilter !== 'all') filters.paymentStatus = paymentFilter;
-      if (refundFilter !== 'all') filters.refundStatus = refundFilter;
-
-      await dispatch(fetchHotelBookings({ hotelId, filters })).unwrap();
-    } catch (error) {
-      console.error('Failed to load bookings:', error);
-      toast.error('Failed to load bookings');
-    }
-  };
+  }, [hotelId, statusFilter, paymentFilter, refundFilter]);
 
   // Helper to get guest display name
   const getGuestName = (booking) => {
@@ -108,8 +117,7 @@ export const Bookings = () => {
     });
   }, [bookings, searchQuery]);
 
-  // Handle check-in
-  const handleCheckIn = async (bookingId) => {
+  const handleCheckIn = useCallback(async (bookingId) => {
     try {
       await dispatch(checkIn(bookingId)).unwrap();
       toast.success('Guest checked in successfully');
@@ -117,10 +125,9 @@ export const Bookings = () => {
     } catch (error) {
       toast.error(error || 'Failed to check in');
     }
-  };
+  }, [dispatch, loadBookings]);
 
-  // Handle check-out
-  const handleCheckOut = async (bookingId) => {
+  const handleCheckOut = useCallback(async (bookingId) => {
     try {
       await dispatch(checkOut(bookingId)).unwrap();
       toast.success('Guest checked out successfully');
@@ -128,12 +135,15 @@ export const Bookings = () => {
     } catch (error) {
       toast.error(error || 'Failed to check out');
     }
-  };
+  }, [dispatch, loadBookings]);
 
-  // Handle cancel booking
-  const handleCancelBooking = async (bookingId) => {
-    if (!window.confirm('Are you sure you want to cancel this booking?')) return;
+  const handleCancelBooking = useCallback((bookingId) => {
+    setConfirmCancel({ open: true, bookingId });
+  }, []);
 
+  const confirmCancelBooking = useCallback(async () => {
+    const { bookingId } = confirmCancel;
+    setConfirmCancel({ open: false, bookingId: null });
     try {
       await dispatch(cancelBooking(bookingId)).unwrap();
       toast.success('Booking cancelled successfully');
@@ -141,15 +151,14 @@ export const Bookings = () => {
     } catch (error) {
       toast.error(error || 'Failed to cancel booking');
     }
-  };
+  }, [confirmCancel, dispatch, loadBookings]);
 
-  // View booking details
-  const handleViewDetails = async (bookingId) => {
-    setSelectedBookingId(bookingId);
+  const handleViewDetails = useCallback((bookingId) => {
+    const booking = bookings.find((b) => b.bookingId === bookingId);
+    dispatch(setSelectedBooking(booking || null));
     setShowDetailsModal(true);
-    await dispatch(fetchBookingById(bookingId));
-    await dispatch(fetchBookingPaymentDetails(bookingId));
-  };
+    dispatch(fetchBookingPaymentDetails(bookingId));
+  }, [bookings, dispatch]);
 
   // Get status counts
   const statusCounts = useMemo(() => {
@@ -162,7 +171,7 @@ export const Bookings = () => {
     };
   }, [bookings, summary]);
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       header: 'Booking ID',
       render: (row) => (
@@ -218,35 +227,19 @@ export const Bookings = () => {
     },
     {
       header: 'Booking Status',
-      render: (row) => {
-        const colors = {
-          BOOKED: 'bg-green-100 text-green-700',
-          CHECKED_IN: 'bg-blue-100 text-blue-700',
-          CHECKED_OUT: 'bg-slate-100 text-slate-700',
-          CANCELLED: 'bg-red-100 text-red-700',
-          PENDING: 'bg-yellow-100 text-yellow-700',
-        };
-        return (
-          <span className={`px-3 py-1 rounded-full text-xs font-medium ${colors[row.bookingStatus] || 'bg-gray-100 text-gray-700'}`}>
-            {row.bookingStatus}
-          </span>
-        );
-      },
+      render: (row) => (
+        <span className={`px-3 py-1 rounded-full text-xs font-medium ${BOOKING_STATUS_COLORS[row.bookingStatus] || 'bg-gray-100 text-gray-700'}`}>
+          {row.bookingStatus}
+        </span>
+      ),
     },
     {
       header: 'Payment',
-      render: (row) => {
-        const colors = {
-          PAID: 'bg-green-100 text-green-700',
-          PENDING: 'bg-yellow-100 text-yellow-700',
-          FAILED: 'bg-red-100 text-red-700',
-        };
-        return (
-          <span className={`px-2 py-1 rounded text-xs font-medium ${colors[row.paymentStatus] || 'bg-gray-100 text-gray-700'}`}>
-            {row.paymentStatus}
-          </span>
-        );
-      },
+      render: (row) => (
+        <span className={`px-2 py-1 rounded text-xs font-medium ${PAYMENT_STATUS_COLORS[row.paymentStatus] || 'bg-gray-100 text-gray-700'}`}>
+          {row.paymentStatus}
+        </span>
+      ),
     },
     {
       header: 'Actions',
@@ -294,10 +287,10 @@ export const Bookings = () => {
         </div>
       ),
     },
-  ];
+  ], [handleViewDetails, handleCheckIn, handleCheckOut, handleCancelBooking, checkInLoading, checkOutLoading, cancelLoading]);
 
   if (loading && bookings.length === 0) {
-    return <Loader fullScreen />;
+    return <BookingsSkeleton />;
   }
 
   return (
@@ -448,15 +441,26 @@ export const Bookings = () => {
         </div>
       )}
 
+      {/* Cancel Booking Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmCancel.open}
+        title="Cancel Booking"
+        message="Are you sure you want to cancel this booking? This action cannot be undone."
+        confirmLabel="Cancel Booking"
+        loading={cancelLoading}
+        onConfirm={confirmCancelBooking}
+        onCancel={() => setConfirmCancel({ open: false, bookingId: null })}
+      />
+
       {/* Booking Details Modal */}
       <AnimatePresence>
-        {showDetailsModal && selectedBooking && (
+        {showDetailsModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowDetailsModal(false)}
+            onClick={() => { setShowDetailsModal(false); dispatch(setSelectedBooking(null)); dispatch(clearPaymentDetails()); }}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -469,10 +473,12 @@ export const Bookings = () => {
               <div className="flex items-center justify-between p-6 border-b border-slate-200">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900">Booking Details</h2>
-                  <p className="text-sm text-slate-500 font-mono">{selectedBooking.bookingId}</p>
+                  {selectedBooking && (
+                    <p className="text-sm text-slate-500 font-mono">{selectedBooking.bookingId}</p>
+                  )}
                 </div>
                 <button
-                  onClick={() => setShowDetailsModal(false)}
+                  onClick={() => { setShowDetailsModal(false); dispatch(setSelectedBooking(null)); dispatch(clearPaymentDetails()); }}
                   className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5 text-slate-500" />
@@ -480,6 +486,12 @@ export const Bookings = () => {
               </div>
 
               {/* Modal Body */}
+              {!selectedBooking ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-900 border-t-transparent" />
+                </div>
+              ) : (
+              <>
               <div className="p-6 space-y-6">
                 {/* Status Badges */}
                 <div className="flex flex-wrap gap-2">
@@ -568,24 +580,32 @@ export const Bookings = () => {
                     <DollarSign className="w-4 h-4 text-green-600" />
                     <h3 className="text-sm font-medium text-slate-700">Payment Details</h3>
                   </div>
+                  {!paymentDetails ? (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-slate-900 border-t-transparent" />
+                    </div>
+                  ) : (
+                  <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-xs text-slate-500">Total Amount</p>
                       <p className="text-2xl font-bold text-slate-900">
-                        ${selectedBooking.totalAmount?.toLocaleString() || '0'}
+                        ${paymentDetails.totalAmount?.toLocaleString() || '0'}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-slate-500">Refund Amount</p>
                       <p className="text-lg font-bold text-slate-900">
-                        ${selectedBooking.refundAmount?.toLocaleString() || '0'}
+                        ${paymentDetails.refundAmount?.toLocaleString() || '0'}
                       </p>
                     </div>
                   </div>
-                  {selectedBooking.refundPolicy && (
+                  {paymentDetails.refundPolicy && (
                     <p className="text-xs text-slate-500 mt-3 p-2 bg-white rounded border border-slate-200">
-                      {selectedBooking.refundPolicy}
+                      {paymentDetails.refundPolicy}
                     </p>
+                  )}
+                  </>
                   )}
                 </div>
 
@@ -641,8 +661,8 @@ export const Bookings = () => {
                     </button>
                     <button
                       onClick={() => {
-                        handleCancelBooking(selectedBooking.bookingId);
                         setShowDetailsModal(false);
+                        handleCancelBooking(selectedBooking.bookingId);
                       }}
                       disabled={cancelLoading}
                       className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50"
@@ -672,6 +692,8 @@ export const Bookings = () => {
                   Close
                 </button>
               </div>
+              </>
+              )}
             </motion.div>
           </motion.div>
         )}

@@ -11,6 +11,20 @@ const api = axios.create({
 });
 
 
+// In-memory token cache — avoids synchronous localStorage read on every request
+let _cachedToken = localStorage.getItem("accessToken");
+
+export const setTokenCache = (token) => { _cachedToken = token; };
+export const clearTokenCache = () => { _cachedToken = null; };
+
+const PUBLIC_ENDPOINTS = [
+  "/staff/login",
+  "/owners/login",
+  "/users/register",
+  "/users/forgot-password",
+  "/users/reset-password",
+];
+
 // =========================
 // REQUEST INTERCEPTOR
 // =========================
@@ -21,26 +35,13 @@ api.interceptors.request.use(
       delete config.headers["Content-Type"];
     }
 
-    // Public (no-auth) endpoints
-    const publicEndpoints = [
-      "/staff/login",
-      "/owners/login",
-      "/users/register",
-      "/users/forgot-password",
-      "/users/reset-password",
-    ];
-
-    const isPublicEndpoint = publicEndpoints.some((endpoint) =>
+    const isPublicEndpoint = PUBLIC_ENDPOINTS.some((endpoint) =>
       config.url?.includes(endpoint)
     );
 
     if (!isPublicEndpoint) {
-      const accessToken = localStorage.getItem("accessToken");
-      if (accessToken) {
-        // Standard JWT header
-        config.headers.Authorization = `Bearer ${accessToken}`;
-      } else {
-        console.warn("⚠️ No access token found for protected route:", config.url);
+      if (_cachedToken) {
+        config.headers.Authorization = `Bearer ${_cachedToken}`;
       }
     }
 
@@ -77,9 +78,9 @@ api.interceptors.response.use(
           error.response?.data?.message || "Invalid credentials"
         );
       } else {
-        console.error("🔒 Unauthorized: Token might be expired or invalid.");
-        // Optional: redirect to login
-        // window.location.href = "/login";
+        console.error("🔒 Unauthorized: Token expired or invalid. Redirecting to login.");
+        localStorage.clear();
+        window.location.href = "/login";
       }
     }
 

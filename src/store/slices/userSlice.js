@@ -42,7 +42,6 @@ export const signinUser = createAsyncThunk(
     try {
       // All staff (including managers) use the same login endpoint
       const endpoint = "/staff/login";
-      console.log("[SIGNIN] → endpoint:", endpoint, "username:", username, "role:", role);
       const response = await loginApi(endpoint, { username, password });
       return response;
     } catch (error) {
@@ -57,7 +56,6 @@ export const signinOwner = createAsyncThunk(
   async ({ username, password }, { rejectWithValue }) => {
     try {
       const endpoint = "/owners/login";
-      console.log("[OWNER SIGNIN] → endpoint:", endpoint, "username:", username);
       const response = await loginApi(endpoint, { username, password });
       return response;
     } catch (error) {

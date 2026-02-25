@@ -52,7 +52,7 @@ export const getRoomsByHotelId = async (hotelId) => {
 // Fetch a single room by ID
 export const getRoomById = async (id) => {
   try {
-    const response = await roomsApi.get(`/partneredhotel/${id}`);
+    const response = await roomsApi.get(`/partneredhotel/rooms/${id}`);
     return response.data;
   } catch (error) {
     console.error(`Error fetching room ${id}:`, error);

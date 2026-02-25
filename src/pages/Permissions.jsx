@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
 import { useDispatch, useSelector } from "react-redux";
 import {
   fetchPermissions,
@@ -65,13 +66,13 @@ export const Permissions = () => {
 
     const accessToken = localStorage.getItem('accessToken');
     if (!accessToken || !isAuthenticated) {
-      alert("You must be logged in to create or edit permissions!");
+      toast.error("You must be logged in to create or edit permissions!");
       return;
     }
 
     if (!form.name || !form.description || !form.category) {
-        alert("Please fill in all fields.");
-        return;
+      toast.error("Please fill in all fields.");
+      return;
     }
 
     console.log("Submitting form with data:", form);
@@ -99,7 +100,7 @@ export const Permissions = () => {
   const handleDelete = () => {
     const accessToken = localStorage.getItem('accessToken');
     if (!accessToken || !isAuthenticated) {
-      alert("You must be logged in to delete permissions!");
+      toast.error("You must be logged in to delete permissions!");
       return;
     }
 
