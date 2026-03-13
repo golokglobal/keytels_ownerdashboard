@@ -10,8 +10,8 @@ const stripWWWAuthenticate = (proxy) => {
   });
 };
 
-const BACKEND = 'https://desiney.berymo.com';
-
+ const BACKEND = 'https://desiney.berymo.com';
+//const BACKEND = 'http://localhost:8080';
 export default defineConfig({
   plugins: [react()],
 

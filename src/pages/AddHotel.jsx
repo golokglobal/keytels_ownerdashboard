@@ -9,8 +9,9 @@ import {
   updateHotelRoom,
   deleteHotelRoom,
 } from "../store/slices/PartnerHotelslice";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { LocationPicker } from "../components/common/LocationPicker";
 import {
   X,
   AlertCircle,
@@ -21,6 +22,11 @@ import {
   Trash2,
   Edit,
   Plus,
+  Image as ImageIcon,
+  Globe,
+  Tag,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { ConfirmModal } from "../components/common/ConfirmModal";
@@ -42,6 +48,7 @@ export const AddHotel = () => {
   const [formData, setFormData] = useState({
     hotelName: "",
     description: "",
+    location: "",
     address: "",
     city: "",
     state: "",
@@ -49,7 +56,9 @@ export const AddHotel = () => {
     latitude: "",
     longitude: "",
     discountPercent: "",
+    status: "ACTIVE",
     amenities: [],
+    hotelImages: [],
     ownerFirstName: "",
     ownerLastName: "",
     ownerEmail: "",
@@ -60,13 +69,16 @@ export const AddHotel = () => {
   });
 
   const [amenityInput, setAmenityInput] = useState("");
+  const [imageUrlInput, setImageUrlInput] = useState("");
   const [roomValidationError, setRoomValidationError] = useState("");
+  const [updateSuccess, setUpdateSuccess] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [existingRooms, setExistingRooms] = useState([]);
   const [editingRoom, setEditingRoom] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [confirmDeleteHotel, setConfirmDeleteHotel] = useState(false);
   const [confirmDeleteRoom, setConfirmDeleteRoom] = useState({ open: false, roomId: null });
+  const formPopulated = useRef(false);
 
   const [roomData, setRoomData] = useState({
     roomType: "",
@@ -92,22 +104,25 @@ export const AddHotel = () => {
   }, [dispatch, hotelId, isUpdateMode]);
 
   useEffect(() => {
+    // Only populate the form once on initial load.
+    // Subsequent selectedHotel updates (e.g. after room ops) only refresh existingRooms
+    // so user-entered values like hotelImages are never wiped.
     if (isUpdateMode && selectedHotel) {
-      console.log("✅ Selected hotel loaded:", selectedHotel);
+      setExistingRooms(selectedHotel.rooms || []);
 
-      // Parse location string (e.g., "123 Main St, Orlando, FL" or "Lake Buena Vista, FL")
+      if (formPopulated.current) return;
+      formPopulated.current = true;
+
       const locationParts = selectedHotel.location ? selectedHotel.location.split(",").map(s => s.trim()) : [];
       let parsedAddress = "";
       let parsedCity = "";
       let parsedState = "";
 
       if (locationParts.length === 3) {
-        // Format: "address, city, state"
         parsedAddress = locationParts[0];
         parsedCity = locationParts[1];
         parsedState = locationParts[2];
       } else if (locationParts.length === 2) {
-        // Format: "city, state"
         parsedCity = locationParts[0];
         parsedState = locationParts[1];
       } else if (locationParts.length === 1) {
@@ -117,6 +132,7 @@ export const AddHotel = () => {
       setFormData({
         hotelName: selectedHotel.name || "",
         description: selectedHotel.description || "",
+        location: selectedHotel.location || "",
         address: parsedAddress || "",
         city: parsedCity || selectedHotel.city || "",
         state: parsedState || selectedHotel.state || "",
@@ -124,7 +140,9 @@ export const AddHotel = () => {
         latitude: selectedHotel.latitude || "",
         longitude: selectedHotel.longitude || "",
         discountPercent: selectedHotel.discountPercentage || "",
+        status: selectedHotel.status || "ACTIVE",
         amenities: selectedHotel.amenities || [],
+        hotelImages: selectedHotel.hotelImages || [],
         ownerFirstName: selectedHotel.owner?.firstName || "",
         ownerLastName: selectedHotel.owner?.lastName || "",
         ownerEmail: selectedHotel.owner?.email || "",
@@ -132,14 +150,6 @@ export const AddHotel = () => {
         stripeAccountId: selectedHotel.owner?.stripeAccountId || "",
         payoutPreference: selectedHotel.owner?.payoutPreference || "bank",
         rooms: [],
-      });
-      setExistingRooms(selectedHotel.rooms || []);
-
-      console.log("📝 Form data populated:", {
-        hotelName: selectedHotel.name,
-        address: parsedAddress,
-        city: parsedCity,
-        state: parsedState,
       });
     }
   }, [selectedHotel, isUpdateMode]);
@@ -151,6 +161,7 @@ export const AddHotel = () => {
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (updateSuccess) setUpdateSuccess(null);
   };
 
   const handleAddAmenity = () => {
@@ -168,6 +179,23 @@ export const AddHotel = () => {
     setFormData((prev) => ({
       ...prev,
       amenities: prev.amenities.filter((a) => a !== amenity),
+    }));
+  };
+
+  const handleAddHotelImage = () => {
+    const url = imageUrlInput.trim();
+    if (!url) return;
+    setFormData((prev) => ({
+      ...prev,
+      hotelImages: [...prev.hotelImages, { imageUrl: url }],
+    }));
+    setImageUrlInput("");
+  };
+
+  const handleRemoveHotelImage = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      hotelImages: prev.hotelImages.filter((_, i) => i !== index),
     }));
   };
 
@@ -277,8 +305,7 @@ export const AddHotel = () => {
       toast.success("Room updated successfully");
 
       // Refresh hotel data to get updated rooms
-      console.log("🔄 Refreshing hotel data for hotel ID:", hotelId);
-      await dispatch(fetchHotelById(hotelId));
+      await dispatch(fetchHotelById(hotelId)).unwrap().catch(() => {});
 
       setShowEditModal(false);
       setEditingRoom(null);
@@ -316,8 +343,7 @@ export const AddHotel = () => {
 
       // Optionally refresh hotel data
       if (hotelId) {
-        console.log("🔄 Refreshing hotel data for hotel ID:", hotelId);
-        await dispatch(fetchHotelById(hotelId));
+        await dispatch(fetchHotelById(hotelId)).unwrap().catch(() => {});
       }
     } catch (error) {
       console.error("❌ Failed to delete room:", error);
@@ -345,27 +371,42 @@ export const AddHotel = () => {
 
     setSubmitting(true);
 
+    const locationStr = isUpdateMode
+      ? (formData.location || [formData.address, formData.city, formData.state].filter(Boolean).join(", "))
+      : [formData.address, formData.city, formData.state].filter(Boolean).join(", ");
+
+    // Auto-include any URL still sitting in the image input box
+    const pendingImages = imageUrlInput.trim()
+      ? [...formData.hotelImages, { imageUrl: imageUrlInput.trim() }]
+      : formData.hotelImages;
+    if (imageUrlInput.trim()) setImageUrlInput("");
+
     const dataToSend = {
       name: formData.hotelName,
       description: formData.description,
-      location: `${formData.address}, ${formData.city}, ${formData.state}`,
-      city: formData.city,
-      state: formData.state,
-      country: formData.country,
+      location: locationStr,
       latitude: parseFloat(formData.latitude) || 0,
       longitude: parseFloat(formData.longitude) || 0,
       isPartnered: true,
       discountPercentage: parseFloat(formData.discountPercent) || 0,
+      status: formData.status || "ACTIVE",
       amenities: formData.amenities,
-      owner: {
+      hotelImages: pendingImages,
+    };
+
+    if (!isUpdateMode) {
+      dataToSend.city = formData.city;
+      dataToSend.state = formData.state;
+      dataToSend.country = formData.country;
+      dataToSend.owner = {
         firstName: formData.ownerFirstName,
         lastName: formData.ownerLastName,
         email: formData.ownerEmail,
         phoneNumber: formData.ownerPhone || "+15551234567",
         stripeAccountId: formData.stripeAccountId,
         payoutPreference: formData.payoutPreference,
-      },
-    };
+      };
+    }
 
     if (!isUpdateMode) {
       dataToSend.rooms = formData.rooms.map((room) => ({
@@ -386,19 +427,18 @@ export const AddHotel = () => {
       if (isUpdateMode) {
         console.log("🔄 UPDATE MODE - Hotel ID:", hotelId);
 
-        const result = await dispatch(updateHotel({ hotelId, data: dataToSend }));
+        const result = await /** @type {Promise<any>} */ (dispatch(updateHotel({ hotelId, data: dataToSend })));
 
         console.log("📥 UPDATE RESULT:", result);
 
         if (result.meta.requestStatus === "fulfilled") {
           console.log("✅ Hotel updated successfully");
 
-          if (formData.rooms.length > 0) {
-            console.log("🛏️ Creating new rooms for existing hotel...");
-            const roomPromises = formData.rooms.map((room, index) => {
-              console.log(`📤 Creating room ${index + 1}/${formData.rooms.length}`);
+          let successMsg = "Hotel updated successfully!";
 
-              return dispatch(
+          if (formData.rooms.length > 0) {
+            const roomPromises = formData.rooms.map((room) =>
+              dispatch(
                 createHotelRoom({
                   hotelId: hotelId,
                   data: {
@@ -412,8 +452,8 @@ export const AddHotel = () => {
                     images: room.images || [],
                   },
                 })
-              );
-            });
+              )
+            );
 
             const roomResults = await Promise.all(roomPromises);
             const successfulRooms = roomResults.filter(
@@ -424,24 +464,19 @@ export const AddHotel = () => {
             );
 
             if (failedRooms.length > 0) {
-              console.error("❌ Some rooms failed to create:", failedRooms);
-              toast.error(
-                `Hotel updated! ${successfulRooms.length} room(s) created, ${failedRooms.length} failed.`
-              );
+              successMsg = `Hotel updated! ${successfulRooms.length} room(s) added, ${failedRooms.length} failed.`;
             } else {
-              console.log("✅ All new rooms created successfully");
-              toast.success(
-                `Hotel and ${successfulRooms.length} new room(s) updated successfully!`
-              );
+              successMsg = `Hotel updated and ${successfulRooms.length} new room(s) added!`;
             }
-          } else {
-            toast.success("Hotel updated successfully!");
+
+            // Refresh rooms list
+            await dispatch(fetchHotelById(hotelId)).unwrap().catch(() => {});
+            setFormData((prev) => ({ ...prev, rooms: [] }));
           }
 
-          // Store the hotel ID for auto-loading in Rooms page
           localStorage.setItem("currentHotelId", hotelId);
-
-          navigate("/rooms");
+          setUpdateSuccess(successMsg);
+          window.scrollTo({ top: 0, behavior: "smooth" });
         } else {
           console.error("❌ Update failed:", result);
           throw new Error(result.error?.message || "Failed to update hotel");
@@ -449,7 +484,7 @@ export const AddHotel = () => {
       } else {
         console.log("🆕 CREATE MODE - Creating new hotel with rooms");
 
-        const hotelResult = await dispatch(createHotel(dataToSend));
+        const hotelResult = await /** @type {Promise<any>} */ (dispatch(createHotel(dataToSend)));
 
         console.log("📥 CREATE HOTEL RESULT:", hotelResult);
         console.log(
@@ -600,101 +635,146 @@ export const AddHotel = () => {
   // For update mode (already registered hotel), show full hotel edit form
   if (isUpdateMode && selectedHotel) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8 px-4">
-        <form onSubmit={onSubmit} className="max-w-4xl mx-auto space-y-6">
+      <div className="min-h-screen bg-slate-50 py-8 px-4">
+        <form onSubmit={onSubmit} className="max-w-4xl mx-auto space-y-5">
+
+          {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Edit Hotel
-              </h1>
-              <p className="text-gray-600 mt-1">Update hotel details and manage rooms</p>
+              <h1 className="text-3xl font-bold text-slate-900">Edit Hotel</h1>
+              <p className="text-slate-500 mt-1 text-sm">Update hotel details and manage rooms</p>
             </div>
             <button
               type="button"
               onClick={handleDeleteHotel}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
               Delete Hotel
             </button>
           </div>
 
+          {updateSuccess && (
+            <div className="p-4 bg-green-50 border border-green-200 rounded-xl flex items-start gap-3">
+              <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold text-green-800 text-sm">Changes saved</p>
+                <p className="text-green-700 text-sm mt-0.5">{updateSuccess}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUpdateSuccess(null)}
+                className="text-green-500 hover:text-green-700 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded flex gap-2 text-red-700">
-              <AlertCircle /> {error}
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700 text-sm">
+              <AlertCircle className="w-4 h-4 shrink-0" /> {error}
             </div>
           )}
 
           {/* BASIC INFO */}
-          <section className="bg-white p-6 rounded border border-gray-200 space-y-4">
-            <div className="flex items-center gap-2 font-semibold text-gray-900 text-lg border-b border-gray-200 pb-3">
-              <Info className="w-5 h-5" /> Basic Information
+          <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+            <div className="flex items-center gap-2 font-semibold text-slate-900 border-b border-slate-100 pb-3">
+              <Info className="w-4 h-4 text-slate-500" /> Basic Information
             </div>
 
-            <input
-              name="hotelName"
-              placeholder="Hotel Name *"
-              value={formData.hotelName}
-              onChange={handleFormChange}
-              className="w-full p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-              required
-            />
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Hotel Name *</label>
+              <input
+                name="hotelName"
+                placeholder="e.g. Mountain Vista Retreat"
+                value={formData.hotelName}
+                onChange={handleFormChange}
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100"
+                required
+              />
+            </div>
 
-            <textarea
-              name="description"
-              placeholder="Description"
-              value={formData.description}
-              onChange={handleFormChange}
-              className="w-full p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-              rows="4"
-            />
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Description</label>
+              <textarea
+                name="description"
+                placeholder="Describe the hotel..."
+                value={formData.description}
+                onChange={handleFormChange}
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100 resize-none"
+                rows="3"
+              />
+            </div>
 
-            <input
-              name="discountPercent"
-              type="number"
-              placeholder="Discount %"
-              value={formData.discountPercent}
-              onChange={handleFormChange}
-              className="w-full p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-              min="0"
-              max="100"
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Discount %</label>
+                <input
+                  name="discountPercent"
+                  type="number"
+                  placeholder="0"
+                  value={formData.discountPercent}
+                  onChange={handleFormChange}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100"
+                  min="0"
+                  max="100"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleFormChange}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100 bg-white"
+                >
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                  <option value="PENDING">Pending</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Status badge preview */}
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${formData.status === "ACTIVE" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
+                {formData.status === "ACTIVE" ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                {formData.status}
+              </span>
+            </div>
 
             {/* Amenities */}
             <div className="space-y-2">
-              <label className="font-medium text-sm text-gray-700">Amenities</label>
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Amenities</label>
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Add amenity (e.g., WiFi, Pool)"
+                  placeholder="e.g. wifi, pool, spa"
                   value={amenityInput}
                   onChange={(e) => setAmenityInput(e.target.value)}
-                  onKeyDown={(e) =>
-                    e.key === "Enter" && (e.preventDefault(), handleAddAmenity())
-                  }
-                  className="flex-1 p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddAmenity())}
+                  className="flex-1 px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100"
                 />
                 <button
                   type="button"
                   onClick={handleAddAmenity}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  className="px-4 py-2.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors"
                 >
-                  Add
+                  <Plus className="w-4 h-4" />
                 </button>
               </div>
               {formData.amenities.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
+                <div className="flex flex-wrap gap-2 pt-1">
                   {formData.amenities.map((amenity) => (
                     <span
                       key={amenity}
-                      className="px-3 py-1 bg-gray-100 text-gray-700 rounded text-sm flex items-center gap-2 border border-gray-300"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-medium capitalize"
                     >
                       {amenity}
-                      <X
-                        size={14}
-                        className="cursor-pointer hover:text-red-600"
-                        onClick={() => handleRemoveAmenity(amenity)}
-                      />
+                      <button type="button" onClick={() => handleRemoveAmenity(amenity)}>
+                        <X size={12} className="hover:text-red-500 transition-colors" />
+                      </button>
                     </span>
                   ))}
                 </div>
@@ -702,124 +782,347 @@ export const AddHotel = () => {
             </div>
           </section>
 
-          {/* OWNER */}
-          <section className="bg-white p-6 rounded border border-gray-200 space-y-4">
-            <div className="flex items-center gap-2 font-semibold text-gray-900 text-lg border-b border-gray-200 pb-3">
-              <CreditCard className="w-5 h-5" /> Owner Details
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <input
-                name="ownerFirstName"
-                placeholder="First Name *"
-                value={formData.ownerFirstName}
-                onChange={handleFormChange}
-                className="p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-                required
-              />
-              <input
-                name="ownerLastName"
-                placeholder="Last Name"
-                value={formData.ownerLastName}
-                onChange={handleFormChange}
-                className="p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-
-            <input
-              name="ownerEmail"
-              type="email"
-              placeholder="Email *"
-              value={formData.ownerEmail}
-              onChange={handleFormChange}
-              className="w-full p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-              required
-            />
-            <input
-              name="ownerPhone"
-              placeholder="Phone *"
-              value={formData.ownerPhone}
-              onChange={handleFormChange}
-              className="w-full p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-              required
-            />
-            <input
-              name="stripeAccountId"
-              placeholder="Stripe Account ID (optional)"
-              value={formData.stripeAccountId}
-              onChange={handleFormChange}
-              className="w-full p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-            />
-          </section>
-
           {/* LOCATION */}
-          <section className="bg-white p-6 rounded border border-gray-200 space-y-4">
-            <div className="flex items-center gap-2 font-semibold text-gray-900 text-lg border-b border-gray-200 pb-3">
-              <MapPin className="w-5 h-5" /> Location
+          <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+            <div className="flex items-center gap-2 font-semibold text-slate-900 border-b border-slate-100 pb-3">
+              <MapPin className="w-4 h-4 text-slate-500" /> Location
             </div>
 
-            <input
-              name="address"
-              placeholder="Address"
-              value={formData.address}
-              onChange={handleFormChange}
-              className="w-full p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
+            <LocationPicker
+              value={{
+                location: formData.location,
+                latitude: formData.latitude,
+                longitude: formData.longitude,
+              }}
+              onChange={({ location, latitude, longitude }) =>
+                setFormData((prev) => ({ ...prev, location, latitude, longitude }))
+              }
             />
-            <div className="grid grid-cols-2 gap-4">
-              <input
-                name="city"
-                placeholder="City"
-                value={formData.city}
-                onChange={handleFormChange}
-                className="p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-              />
-              <input
-                name="state"
-                placeholder="State"
-                value={formData.state}
-                onChange={handleFormChange}
-                className="p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-              />
+
+            {/* Manual overrides */}
+            <div className="grid grid-cols-2 gap-4 pt-1">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Latitude</label>
+                <input
+                  name="latitude"
+                  type="number"
+                  step="any"
+                  placeholder="e.g. 39.1911"
+                  value={formData.latitude}
+                  onChange={handleFormChange}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Longitude</label>
+                <input
+                  name="longitude"
+                  type="number"
+                  step="any"
+                  placeholder="e.g. -106.8175"
+                  value={formData.longitude}
+                  onChange={handleFormChange}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100"
+                />
+              </div>
             </div>
-            <input
-              name="country"
-              placeholder="Country"
-              value={formData.country}
-              onChange={handleFormChange}
-              className="w-full p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-            />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Location String</label>
               <input
-                name="latitude"
-                type="number"
-                step="any"
-                placeholder="Latitude"
-                value={formData.latitude}
+                name="location"
+                placeholder="e.g. Aspen, Colorado, USA"
+                value={formData.location}
                 onChange={handleFormChange}
-                className="p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100"
               />
-              <input
-                name="longitude"
-                type="number"
-                step="any"
-                placeholder="Longitude"
-                value={formData.longitude}
-                onChange={handleFormChange}
-                className="p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-              />
+              <p className="text-xs text-slate-400">Auto-filled from map selection, or edit manually</p>
             </div>
           </section>
 
-          <button
-            type="submit"
-            disabled={loading || submitting}
-            className="w-full py-3 bg-blue-600 text-white rounded font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            {loading || submitting
-              ? "Updating..."
-              : "Update Hotel"}
-          </button>
+          {/* HOTEL IMAGES */}
+          <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+            <div className="flex items-center gap-2 font-semibold text-slate-900 border-b border-slate-100 pb-3">
+              <ImageIcon className="w-4 h-4 text-slate-500" /> Hotel Images
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="url"
+                placeholder="Paste image URL and press Enter or click +"
+                value={imageUrlInput}
+                onChange={(e) => setImageUrlInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddHotelImage())}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData.getData("text").trim();
+                  if (pasted) {
+                    e.preventDefault();
+                    setFormData((prev) => ({
+                      ...prev,
+                      hotelImages: [...prev.hotelImages, { imageUrl: pasted }],
+                    }));
+                    setImageUrlInput("");
+                    if (updateSuccess) setUpdateSuccess(null);
+                  }
+                }}
+                className={`flex-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-100 transition-colors ${
+                  imageUrlInput ? "border-blue-400 focus:border-blue-500" : "border-slate-200 focus:border-slate-400"
+                }`}
+              />
+              <button
+                type="button"
+                onClick={handleAddHotelImage}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  imageUrlInput
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "bg-slate-900 hover:bg-slate-800 text-white"
+                }`}
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+
+            {formData.hotelImages.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {formData.hotelImages.map((img, idx) => (
+                  <div key={idx} className="relative group rounded-lg overflow-hidden border border-slate-200 aspect-video bg-slate-100">
+                    <img
+                      src={img.imageUrl}
+                      alt={`Hotel image ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.target.style.display = "none"; }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveHotelImage(idx)}
+                      className="absolute top-1 right-1 p-1 bg-black/60 hover:bg-red-600 rounded-full text-white opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <X size={12} />
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/40 py-0.5 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <p className="text-white text-xs truncate">{img.imageUrl}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="border-2 border-dashed border-slate-200 rounded-lg p-8 text-center">
+                <ImageIcon className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm text-slate-400">No images added yet</p>
+              </div>
+            )}
+          </section>
+
+          {/* EXISTING ROOMS */}
+          {existingRooms.length > 0 && (
+            <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2 font-semibold text-slate-900">
+                  <BedDouble className="w-4 h-4 text-slate-500" /> Rooms ({existingRooms.length})
+                </div>
+              </div>
+              <div className="space-y-3">
+                {existingRooms.map((room) => {
+                  const rid = room.roomId || room.id;
+                  return (
+                    <div key={rid} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-slate-900 text-sm capitalize">{room.roomType || "Room"}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Capacity: {room.capacity} &bull; ${room.pricePerNight || room.basePrice || 0}/night
+                          {room.bedType && ` · ${room.bedType}`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 ml-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${room.isAvailable !== false ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
+                          {room.isAvailable !== false ? "Available" : "Unavailable"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleEditExistingRoom(room)}
+                          className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded transition-colors"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteExistingRoom(rid)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* SUBMIT */}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => navigate("/hotels")}
+              className="flex-1 py-3 border border-slate-200 rounded-xl text-slate-700 font-medium text-sm hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || submitting}
+              className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-medium text-sm hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading || submitting ? "Saving changes…" : updateSuccess ? "Save Again" : "Save Changes"}
+            </button>
+          </div>
         </form>
+
+        {/* Edit Room Modal */}
+        {showEditModal && editingRoom && (
+          <div
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={() => { setShowEditModal(false); setEditingRoom(null); }}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <h3 className="font-bold text-slate-900">Edit Room</h3>
+                <button
+                  type="button"
+                  onClick={() => { setShowEditModal(false); setEditingRoom(null); }}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateRoom} className="p-6 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Room Type *</label>
+                    <input
+                      value={editingRoom.roomType || ""}
+                      onChange={(e) => setEditingRoom((p) => ({ ...p, roomType: e.target.value }))}
+                      placeholder="e.g. Deluxe Suite"
+                      required
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Bed Type</label>
+                    <input
+                      value={editingRoom.bedType || ""}
+                      onChange={(e) => setEditingRoom((p) => ({ ...p, bedType: e.target.value }))}
+                      placeholder="e.g. King"
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Capacity *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={editingRoom.capacity || ""}
+                      onChange={(e) => setEditingRoom((p) => ({ ...p, capacity: e.target.value }))}
+                      required
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Price / Night *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editingRoom.basePrice || editingRoom.pricePerNight || ""}
+                      onChange={(e) => setEditingRoom((p) => ({ ...p, basePrice: e.target.value, pricePerNight: e.target.value }))}
+                      required
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Size (sqft)</label>
+                    <input
+                      value={editingRoom.size || ""}
+                      onChange={(e) => setEditingRoom((p) => ({ ...p, size: e.target.value }))}
+                      placeholder="e.g. 450"
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
+                    <select
+                      value={editingRoom.status || "available"}
+                      onChange={(e) => setEditingRoom((p) => ({ ...p, status: e.target.value }))}
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none bg-white"
+                    >
+                      <option value="available">Available</option>
+                      <option value="occupied">Occupied</option>
+                      <option value="maintenance">Maintenance</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Description</label>
+                  <textarea
+                    value={editingRoom.description || ""}
+                    onChange={(e) => setEditingRoom((p) => ({ ...p, description: e.target.value }))}
+                    rows="2"
+                    placeholder="Room description..."
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-slate-400 focus:outline-none resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => { setShowEditModal(false); setEditingRoom(null); }}
+                    className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50"
+                  >
+                    {loading ? "Saving…" : "Save Room"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Hotel Confirm Modal */}
+        <ConfirmModal
+          isOpen={confirmDeleteHotel}
+          title="Delete Hotel"
+          message="Are you sure you want to delete this hotel? This action cannot be undone."
+          confirmLabel="Delete Hotel"
+          loading={loading}
+          onConfirm={confirmHotelDelete}
+          onCancel={() => setConfirmDeleteHotel(false)}
+        />
+
+        {/* Delete Room Confirm Modal */}
+        <ConfirmModal
+          isOpen={confirmDeleteRoom.open}
+          title="Delete Room"
+          message="Are you sure you want to delete this room? This action cannot be undone."
+          confirmLabel="Delete Room"
+          onConfirm={confirmRoomDelete}
+          onCancel={() => setConfirmDeleteRoom({ open: false, roomId: null })}
+        />
       </div>
     );
   }
@@ -978,55 +1281,69 @@ export const AddHotel = () => {
             <MapPin className="w-5 h-5" /> Location
           </div>
 
-          <input
-            name="address"
-            placeholder="Address"
-            value={formData.address}
-            onChange={handleFormChange}
-            className="w-full p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
+          <LocationPicker
+            value={{
+              location: formData.location,
+              latitude: formData.latitude,
+              longitude: formData.longitude,
+            }}
+            onChange={({ location, latitude, longitude }) =>
+              setFormData((prev) => ({ ...prev, location, latitude, longitude }))
+            }
           />
-          <div className="grid grid-cols-2 gap-4">
+
+          {/* Manual address fields for create */}
+          <div className="grid grid-cols-1 gap-3 pt-1">
             <input
-              name="city"
-              placeholder="City"
-              value={formData.city}
+              name="address"
+              placeholder="Street Address"
+              value={formData.address}
               onChange={handleFormChange}
-              className="p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
+              className="w-full p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
             />
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                name="city"
+                placeholder="City"
+                value={formData.city}
+                onChange={handleFormChange}
+                className="p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
+              />
+              <input
+                name="state"
+                placeholder="State"
+                value={formData.state}
+                onChange={handleFormChange}
+                className="p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
+              />
+            </div>
             <input
-              name="state"
-              placeholder="State"
-              value={formData.state}
+              name="country"
+              placeholder="Country"
+              value={formData.country}
               onChange={handleFormChange}
-              className="p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
+              className="w-full p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
             />
-          </div>
-          <input
-            name="country"
-            placeholder="Country"
-            value={formData.country}
-            onChange={handleFormChange}
-            className="w-full p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-          />
-          <div className="grid grid-cols-2 gap-4">
-            <input
-              name="latitude"
-              type="number"
-              step="any"
-              placeholder="Latitude"
-              value={formData.latitude}
-              onChange={handleFormChange}
-              className="p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-            />
-            <input
-              name="longitude"
-              type="number"
-              step="any"
-              placeholder="Longitude"
-              value={formData.longitude}
-              onChange={handleFormChange}
-              className="p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                name="latitude"
+                type="number"
+                step="any"
+                placeholder="Latitude (auto-filled)"
+                value={formData.latitude}
+                onChange={handleFormChange}
+                className="p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
+              />
+              <input
+                name="longitude"
+                type="number"
+                step="any"
+                placeholder="Longitude (auto-filled)"
+                value={formData.longitude}
+                onChange={handleFormChange}
+                className="p-2.5 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
+              />
+            </div>
           </div>
         </section>
 

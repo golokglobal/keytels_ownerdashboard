@@ -16,7 +16,7 @@
 
   // Update Hotel
   export const updatePartneredHotel = (hotelId, data) =>
-    api.put(`/partneredhotel/${hotelId}`, data).then(res => res.data);
+    api.put(`/partneredhotel/update/${hotelId}`, data).then(res => res.data);
 
   // Delete Hotel
   export const deletePartneredHotel = (hotelId) =>
