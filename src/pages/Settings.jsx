@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import { Save, Bell, Lock, User, Building, Clock, AlertCircle, Check, X, RefreshCw } from 'lucide-react';
 import {
-  fetchAllOwnerHotels,
   fetchHotelById,
   updateHotel,
 } from '../store/slices/PartnerHotelslice';
@@ -11,8 +10,7 @@ import {
 export const Settings = () => {
   const dispatch = useDispatch();
   const { hotels, loading: hotelLoading, error: hotelError } = useSelector((state) => state.partneredhotels);
-  const { hotelId, userRole } = useSelector((state) => state.user);
-  const isHotelManager = userRole === 'HOTEL_MANAGER';
+  const { hotelId } = useSelector((state) => state.user);
 
   const [settings, setSettings] = useState({
     hotelName: '',
@@ -35,30 +33,18 @@ export const Settings = () => {
   const [saveError, setSaveError] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  // Fetch hotel data on mount — mirrors the same fallback strategy as HotelList
+  // Fetch hotel data on mount using GET /partneredhotel/{hotelId}
   useEffect(() => {
     const loadHotel = async () => {
+      if (!hotelId) return;
       try {
-        if (isHotelManager) {
-          if (hotelId) {
-            await dispatch(fetchHotelById(hotelId)).unwrap();
-          }
-        } else {
-          try {
-            await dispatch(fetchAllOwnerHotels()).unwrap();
-          } catch {
-            // /owner/hotels endpoint returns 500 on this server — fall back to fetchHotelById
-            if (hotelId) {
-              await dispatch(fetchHotelById(hotelId)).unwrap();
-            }
-          }
-        }
+        await dispatch(fetchHotelById(hotelId)).unwrap();
       } catch (err) {
         console.error('[Settings] Failed to load hotel:', err);
       }
     };
     loadHotel();
-  }, [dispatch, isHotelManager, hotelId]);
+  }, [dispatch, hotelId]);
 
   // Populate form once hotels are loaded
   useEffect(() => {

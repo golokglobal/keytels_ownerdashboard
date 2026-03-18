@@ -9,6 +9,7 @@ import { ConfirmModal } from '../components/common/ConfirmModal';
 import {
   fetchHotelStaff,
   createStaffMember,
+  createManagerMember,
   updateStaffMember,
   deleteStaffMember,
   selectStaff,
@@ -94,12 +95,14 @@ export const Staff = () => {
     }
 
     try {
+      const isManager = formData.role === 'HOTEL_MANAGER';
+
       const staffData = {
         name: formData.name,
         email: formData.email,
         role: formData.role,
         hotelId,
-        permissionName: formData.permissionName,
+        ...(!isManager && { permissionName: formData.permissionName }),
       };
 
       if (!editingStaff) {
@@ -109,6 +112,9 @@ export const Staff = () => {
       if (editingStaff) {
         await dispatch(updateStaffMember({ staffId: editingStaff.id, staffData })).unwrap();
         toast.success('Staff member updated successfully');
+      } else if (isManager) {
+        await dispatch(createManagerMember(staffData)).unwrap();
+        toast.success('Hotel manager created successfully');
       } else {
         await dispatch(createStaffMember(staffData)).unwrap();
         toast.success('Staff member created successfully');
@@ -327,30 +333,32 @@ export const Staff = () => {
                   required
                 >
                   <option value="HOTEL_STAFF">Hotel Staff</option>
-                  <option value="HOTELMANAGER">Hotel Manager</option>
+                  <option value="HOTEL_MANAGER">Hotel Manager</option>
                 </select>
               </div>
 
-              {/* Permission */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Permission
-                </label>
-                <select
-                  value={formData.permissionName}
-                  onChange={(e) => setFormData({ ...formData, permissionName: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  <option value="">Select Permission</option>
-                  {permissions
-                    .filter((p) => p.category === 'HOTEL')
-                    .map((permission) => (
-                      <option key={permission.id} value={permission.name}>
-                        {permission.name} - {permission.description}
-                      </option>
-                    ))}
-                </select>
-              </div>
+              {/* Permission — only for HOTEL_STAFF */}
+              {formData.role === 'HOTEL_STAFF' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Permission
+                  </label>
+                  <select
+                    value={formData.permissionName}
+                    onChange={(e) => setFormData({ ...formData, permissionName: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  >
+                    <option value="">Select Permission</option>
+                    {permissions
+                      .filter((p) => p.category === 'HOTEL')
+                      .map((permission) => (
+                        <option key={permission.id} value={permission.name}>
+                          {permission.name} - {permission.description}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
 
               {/* Hotel ID (display only) */}
               <div>

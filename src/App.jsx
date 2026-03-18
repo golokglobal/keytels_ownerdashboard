@@ -1,6 +1,6 @@
 import { useEffect, Suspense, lazy } from 'react';
 import { useDispatch } from 'react-redux';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { MainLayout } from './components/Layout/MainLayout';
 import { PrivateRoute } from './components/Layout/PrivateRoute';
 import { Loader } from './components/common/Loader';
@@ -26,6 +26,17 @@ const Permissions    = lazy(() => import('./pages/Permissions').then(m => ({ def
 const Staff          = lazy(() => import('./pages/Staff').then(m => ({ default: m.Staff })));
 const Profile        = lazy(() => import('./pages/Profile'));
 
+/* Listens for auth:logout events fired by the axios interceptor */
+function AuthLogoutListener() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const handler = () => navigate('/login', { replace: true });
+    window.addEventListener('auth:logout', handler);
+    return () => window.removeEventListener('auth:logout', handler);
+  }, [navigate]);
+  return null;
+}
+
 function App() {
   const dispatch = useDispatch();
 
@@ -35,6 +46,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <AuthLogoutListener />
       <Suspense fallback={<Loader fullScreen />}>
         <Routes>
           {/* Public Routes */}

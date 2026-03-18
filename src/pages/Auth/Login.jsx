@@ -102,9 +102,10 @@ export const Login = () => {
           setError('Unknown role. Contact support.');
         }
       } else {
-        // Handle rejected action
+        // Handle rejected action — payload may be a string or object
+        const p = resultAction.payload;
         const errMsg =
-          resultAction.payload?.message ||
+          (typeof p === 'string' ? p : p?.message || p?.error) ||
           resultAction.error?.message ||
           'Login failed – check username/password';
         setError(errMsg);

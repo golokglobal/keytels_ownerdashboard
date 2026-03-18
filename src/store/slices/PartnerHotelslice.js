@@ -3,11 +3,19 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import * as api from "../../api/partneredHotelsApi";
 
 /* ============================ HOTEL THUNKS ============================ */
-export const fetchAllOwnerHotels = createAsyncThunk(
-  "partneredHotel/fetchAllOwnerHotels",
-  async () => {
-    const response = await api.getAllOwnerHotels();
-    return response;
+
+// Fetch all hotels for the authenticated owner
+export const fetchOwnerHotels = createAsyncThunk(
+  "partneredHotel/fetchOwnerHotels",
+  async ({ page = 0, size = 50 } = {}, { rejectWithValue }) => {
+    try {
+      const response = await api.getOwnerHotels(page, size);
+      return response;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || error.message || "Failed to fetch hotels"
+      );
+    }
   }
 );
 
@@ -21,25 +29,43 @@ export const fetchHotelById = createAsyncThunk(
 
 export const createHotel = createAsyncThunk(
   "partneredHotel/createHotel",
-  async (data) => {
-    const response = await api.createPartneredHotel(data);
-    return response;
+  async (data, { rejectWithValue }) => {
+    try {
+      const response = await api.createPartneredHotel(data);
+      return response;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || error.message || "Failed to create hotel"
+      );
+    }
   }
 );
 
 export const updateHotel = createAsyncThunk(
   "partneredHotel/updateHotel",
-  async ({ hotelId, data }) => {
-    const response = await api.updatePartneredHotel(hotelId, data);
-    return response;
+  async ({ hotelId, data }, { rejectWithValue }) => {
+    try {
+      const response = await api.updatePartneredHotel(hotelId, data);
+      return response;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || error.message || "Failed to update hotel"
+      );
+    }
   }
 );
 
 export const deleteHotel = createAsyncThunk(
   "partneredHotel/deleteHotel",
-  async (hotelId) => {
-    await api.deletePartneredHotel(hotelId);
-    return hotelId;
+  async (hotelId, { rejectWithValue }) => {
+    try {
+      await api.deactivatePartneredHotel(hotelId);
+      return hotelId;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || error.message || "Failed to deactivate hotel"
+      );
+    }
   }
 );
 
@@ -172,17 +198,9 @@ const partneredHotelSlice = createSlice({
   extraReducers: (builder) => {
     builder
       // ────────────── HOTELS ──────────────
-      .addCase(fetchAllOwnerHotels.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchAllOwnerHotels.fulfilled, (state, action) => {
-        state.loading = false;
+      .addCase(fetchOwnerHotels.fulfilled, (state, action) => {
+        // API returns an array of hotels
         state.hotels = Array.isArray(action.payload) ? action.payload : [];
-      })
-      .addCase(fetchAllOwnerHotels.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.error.message || "Failed to fetch hotels";
       })
       .addCase(fetchHotelById.fulfilled, (state, action) => {
         state.selectedHotel = action.payload;

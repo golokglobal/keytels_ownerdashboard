@@ -78,9 +78,11 @@ api.interceptors.response.use(
           error.response?.data?.message || "Invalid credentials"
         );
       } else {
-        console.error("🔒 Unauthorized: Token expired or invalid. Redirecting to login.");
+        console.error("🔒 Unauthorized: Token expired or invalid.");
+        clearTokenCache();
         localStorage.clear();
-        window.location.href = "/login";
+        // Soft redirect via custom event so React Router handles navigation
+        window.dispatchEvent(new CustomEvent("auth:logout"));
       }
     }
 

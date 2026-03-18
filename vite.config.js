@@ -27,63 +27,72 @@ export default defineConfig({
       // IMPORTANT: Specific routes MUST come before generic fallback
       // ───────────────────────────────────────────────
       '/api/owners': {
-        target: BACKEND,
+        target: 'http://localhost:8083',  // auth service — owner data lives here
+        // target: BACKEND,
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/api/staff': {
-        target: BACKEND,
+        target: 'http://localhost:8083',  // auth service
+        // target: BACKEND,
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/api/users': {
-        target: BACKEND,
+        // target: BACKEND,
+        target: 'http://localhost:8084',
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/api/partneredhotel': {
-        target: BACKEND,
+        // target: BACKEND,
+        target: 'http://localhost:8084',
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/api/hotels': {
-        target: BACKEND,
+        // target: BACKEND,
+        target: 'http://localhost:8084',
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/api/bookings': {
-        target: BACKEND,
+        // target: BACKEND,
+        target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/partneredhotel': {
-        target: BACKEND,
+        // target: BACKEND,
+        target: 'http://localhost:8084',
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/users/admin': {
-        target: BACKEND,
+        // target: BACKEND,
+        target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/auth': {
-        target: BACKEND,
+        // target: BACKEND,
+        target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
@@ -91,7 +100,8 @@ export default defineConfig({
 
       // Generic fallback for anything else under /api (MUST be last)
       '/api': {
-        target: BACKEND,
+        // target: BACKEND,
+        target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,

@@ -305,7 +305,9 @@ const userSlice = createSlice({
           localStorage.setItem("hotelIds", JSON.stringify(state.hotelIds));
           localStorage.setItem("hotelId", state.hotelIds[0]);
         } else if (state.hotelId) {
+          // Staff/Manager: hotelId comes directly from user.hotelId, no hotels array
           localStorage.setItem("hotelIds", JSON.stringify([state.hotelId]));
+          localStorage.setItem("hotelId", state.hotelId);
         }
       })
       .addCase(signinUser.rejected, (state, action) => {

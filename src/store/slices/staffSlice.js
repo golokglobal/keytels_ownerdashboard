@@ -1,6 +1,24 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as api from '../../api/staff';
 
+/* ============================ MANAGER THUNK ============================ */
+
+// Create new hotel manager (uses /staff/hotel-managers/create endpoint)
+export const createManagerMember = createAsyncThunk(
+  'staff/createManagerMember',
+  async (managerData, { rejectWithValue }) => {
+    try {
+      console.log('🔄 Creating hotel manager:', managerData);
+      const response = await api.createManager(managerData);
+      console.log('✅ Hotel manager created:', response);
+      return response.hotelManager || response;
+    } catch (error) {
+      console.error('❌ Error creating manager:', error);
+      return rejectWithValue(error.response?.data?.message || 'Failed to create hotel manager');
+    }
+  }
+);
+
 /* ============================ STAFF THUNKS ============================ */
 
 // Fetch all staff for a hotel
@@ -130,6 +148,20 @@ const staffSlice = createSlice({
         state.staff.push(action.payload);
       })
       .addCase(createStaffMember.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // ────────────── CREATE MANAGER MEMBER ──────────────
+      .addCase(createManagerMember.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createManagerMember.fulfilled, (state, action) => {
+        state.loading = false;
+        state.staff.push(action.payload);
+      })
+      .addCase(createManagerMember.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
