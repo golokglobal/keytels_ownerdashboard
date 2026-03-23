@@ -12,6 +12,7 @@ import {
   selectReviewsLoading,
 } from '../store/slices/reviewSlice';
 import { ReviewsSkeleton } from '../components/common/Skeleton';
+import { fetchOwnerHotels } from '../store/slices/PartnerHotelslice';
 
 export const Reviews = () => {
   const dispatch = useDispatch();
@@ -19,23 +20,47 @@ export const Reviews = () => {
   const summary = useSelector(selectReviewSummary);
   const loading = useSelector(selectReviewsLoading);
 
-  const hotelId = useSelector((state) => state.user.hotelId);
+  const primaryHotelId = useSelector((state) => state.user.hotelId);
+  const { hotels: ownerHotels } = useSelector((state) => state.partneredhotels);
+  const [activeHotelId, setActiveHotelId] = useState(null);
   const [activeFilter, setActiveFilter] = useState('ALL');
 
+  // Initialise activeHotelId from primary hotel
   useEffect(() => {
-    if (hotelId) {
-      dispatch(fetchHotelReviews(hotelId));
-      dispatch(fetchHotelReviewSummary(hotelId));
-    } else {
+    if (!activeHotelId && primaryHotelId) {
+      setActiveHotelId(primaryHotelId);
+    }
+  }, [primaryHotelId]);
+
+  // Auto-select first loaded hotel if activeHotelId is still null
+  useEffect(() => {
+    if (!activeHotelId && ownerHotels.length > 0) {
+      const first = ownerHotels[0];
+      setActiveHotelId(first.partneredHotelId || first.id);
+    }
+  }, [ownerHotels]);
+
+  // Fetch owner hotels on mount if not already loaded
+  useEffect(() => {
+    if (ownerHotels.length === 0) {
+      dispatch(fetchOwnerHotels());
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeHotelId) {
+      dispatch(fetchHotelReviews(activeHotelId));
+      dispatch(fetchHotelReviewSummary(activeHotelId));
+    } else if (!primaryHotelId) {
       toast.error('No hotel ID found. Please ensure you are logged in.');
     }
-  }, [dispatch, hotelId]);
+  }, [dispatch, activeHotelId]);
 
   const handleToggleStatus = async (reviewId, currentStatus) => {
     const newStatus = currentStatus === 'ACTIVE' ? 'HIDDEN' : 'ACTIVE';
 
     try {
-      await dispatch(updateReviewStatus({ hotelId, reviewId, status: newStatus })).unwrap();
+      await dispatch(updateReviewStatus({ hotelId: activeHotelId, reviewId, status: newStatus })).unwrap();
       toast.success(`Review ${newStatus === 'ACTIVE' ? 'shown' : 'hidden'} successfully`);
     } catch (error) {
       toast.error(error || 'Failed to update review status');
@@ -72,6 +97,25 @@ export const Reviews = () => {
         <h1 className="text-3xl font-bold text-slate-900 mb-2">Guest Reviews</h1>
         <p className="text-slate-600">Manage and respond to guest feedback</p>
       </div>
+
+      {/* Hotel Selector */}
+      {ownerHotels.length > 1 && (
+        <div className="flex gap-2 flex-wrap">
+          {ownerHotels.map((h) => {
+            const hid = h.partneredHotelId || h.id;
+            return (
+              <button key={hid} onClick={() => setActiveHotelId(hid)}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                  activeHotelId === hid
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'
+                }`}>
+                {h.name || h.hotelName}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Rating Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

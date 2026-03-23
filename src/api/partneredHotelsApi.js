@@ -32,8 +32,8 @@ export const createRoom = (hotelId, data) =>
   api.post(`/partneredhotel/${hotelId}/rooms`, data).then(res => res.data);
 
 // Get Rooms by Hotel
-export const getRoomsByHotel = (hotelId, available = true) =>
-  api.get(`/partneredhotel/${hotelId}/rooms${available ? "?available=true" : ""}`).then(res => res.data);
+export const getRoomsByHotel = (hotelId) =>
+  api.get(`/partneredhotel/${hotelId}/rooms`).then(res => res.data);
 
 // Get Room by ID
 export const getRoomById = (roomId) =>

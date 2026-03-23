@@ -68,7 +68,7 @@ export default defineConfig({
 
       '/api/bookings': {
         // target: BACKEND,
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8084',
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,

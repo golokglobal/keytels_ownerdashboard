@@ -50,6 +50,19 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Prevents multiple simultaneous 401s from firing multiple logout events
+let _logoutHandled = false;
+
+const handleSessionExpired = () => {
+  if (_logoutHandled) return;
+  _logoutHandled = true;
+  clearTokenCache();
+  localStorage.clear();
+  window.dispatchEvent(new CustomEvent("auth:logout"));
+  // Reset after navigation so future sessions work
+  setTimeout(() => { _logoutHandled = false; }, 5000);
+};
+
 // =========================
 // RESPONSE INTERCEPTOR
 // =========================
@@ -79,10 +92,7 @@ api.interceptors.response.use(
         );
       } else {
         console.error("🔒 Unauthorized: Token expired or invalid.");
-        clearTokenCache();
-        localStorage.clear();
-        // Soft redirect via custom event so React Router handles navigation
-        window.dispatchEvent(new CustomEvent("auth:logout"));
+        handleSessionExpired();
       }
     }
 

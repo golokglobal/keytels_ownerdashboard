@@ -26,6 +26,7 @@ import {
   selectPaymentsTotal,
 } from '../store/slices/bookingSlice';
 import { fetchDashboardReviews, fetchHotelReviewSummary } from '../store/slices/reviewSlice';
+import { fetchOwnerHotels } from '../store/slices/PartnerHotelslice';
 
 const getGuestName = (booking) => {
   if (booking.guest) {
@@ -103,33 +104,50 @@ export const Dashboard = () => {
   const { bookings, todayCheckIns, todayCheckOuts, summary: bookingSummary } = useSelector((state) => state.bookings);
   const { dashboardReviews, summary: reviewSummary } = useSelector((state) => state.reviews);
   const paymentsTotal = useSelector(selectPaymentsTotal);
-  const hotelId = useSelector((state) => state.user.hotelId);
+  const primaryHotelId = useSelector((state) => state.user.hotelId);
+  const { hotels: ownerHotels } = useSelector((state) => state.partneredhotels);
+  const [activeHotelId, setActiveHotelId] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Fetch owner hotels on mount if not loaded
   useEffect(() => {
-    if (hotelId) {
-      loadData();
+    if (ownerHotels.length === 0) dispatch(fetchOwnerHotels());
+  }, []);
+
+  // Init activeHotelId from primary
+  useEffect(() => {
+    if (!activeHotelId && primaryHotelId) setActiveHotelId(primaryHotelId);
+  }, [primaryHotelId]);
+
+  // Auto-select first hotel if primary not set
+  useEffect(() => {
+    if (!activeHotelId && ownerHotels.length > 0) {
+      setActiveHotelId(ownerHotels[0].partneredHotelId || ownerHotels[0].id);
+    }
+  }, [ownerHotels]);
+
+  useEffect(() => {
+    if (activeHotelId) {
+      loadData(activeHotelId);
     } else {
       setLoading(false);
     }
-  }, [hotelId]);
+  }, [activeHotelId]);
 
-  const loadData = async () => {
+  const loadData = async (hid) => {
+    setLoading(true);
     try {
-      // Calculate date range for revenue (last 30 days)
       const toDate = format(new Date(), 'yyyy-MM-dd');
       const fromDate = format(subDays(new Date(), 30), 'yyyy-MM-dd');
-
-      // Load real data from backend APIs in parallel
       await Promise.allSettled([
-        dispatch(fetchHotelBookings({ hotelId, filters: {} })),
-        dispatch(fetchBookingSummary(hotelId)),
-        dispatch(fetchTodayCheckIns(hotelId)),
-        dispatch(fetchTodayCheckOuts(hotelId)),
-        dispatch(fetchHotelRevenue({ hotelId, fromDate, toDate })),
-        dispatch(fetchHotelPayments(hotelId)),
-        dispatch(fetchDashboardReviews(hotelId)),
-        dispatch(fetchHotelReviewSummary(hotelId)),
+        dispatch(fetchHotelBookings({ hotelId: hid, filters: {} })),
+        dispatch(fetchBookingSummary(hid)),
+        dispatch(fetchTodayCheckIns(hid)),
+        dispatch(fetchTodayCheckOuts(hid)),
+        dispatch(fetchHotelRevenue({ hotelId: hid, fromDate, toDate })),
+        dispatch(fetchHotelPayments(hid)),
+        dispatch(fetchDashboardReviews(hid)),
+        dispatch(fetchHotelReviewSummary(hid)),
       ]);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
@@ -145,10 +163,36 @@ export const Dashboard = () => {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">Dashboard Overview</h1>
-        <p className="text-slate-600">Welcome back! Here's what's happening with your hotel today.</p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Dashboard Overview</h1>
+          <p className="text-slate-600">Welcome back! Here's what's happening with your hotel today.</p>
+        </div>
+        <button onClick={() => activeHotelId && loadData(activeHotelId)}
+          disabled={loading || !activeHotelId}
+          className="self-start flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-all disabled:opacity-50 text-sm">
+          <TrendingUp className="w-4 h-4" /> Refresh
+        </button>
       </div>
+
+      {/* Hotel Selector — shown only for owners with multiple hotels */}
+      {ownerHotels.length > 1 && (
+        <div className="flex gap-2 flex-wrap">
+          {ownerHotels.map((h) => {
+            const hid = h.partneredHotelId || h.id;
+            return (
+              <button key={hid} onClick={() => setActiveHotelId(hid)}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                  activeHotelId === hid
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'
+                }`}>
+                {h.name || h.hotelName}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Stats Grid - Using Real Booking Summary Data */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

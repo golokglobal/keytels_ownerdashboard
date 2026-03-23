@@ -3,7 +3,7 @@ import { useDispatch } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Hotel, Mail, Lock, ArrowRight, Eye, EyeOff, Crown, Shield } from 'lucide-react';
-import { signinOwner } from '../../store/slices/authSlice';
+import { signinOwner } from '../../store/slices/userSlice';
 import { Loader } from '../../components/common/Loader';
 
 export const OwnerLogin = () => {

@@ -32,8 +32,17 @@ export const loginApi = async (endpoint, payload) => {
     localStorage.setItem("userId", user.id || user._id || "");
     localStorage.setItem("userRole", user.role || "");
 
+    // Staff / Manager: single hotelId
     if (user.hotelId) {
       localStorage.setItem("hotelId", user.hotelId);
+      localStorage.setItem("hotelIds", JSON.stringify([user.hotelId]));
+    }
+
+    // Owner: hotels array
+    if (user.hotels?.length > 0) {
+      const ids = user.hotels.map(h => h._id || h.partneredHotelId || h.id).filter(Boolean);
+      localStorage.setItem("hotelIds", JSON.stringify(ids));
+      if (ids[0]) localStorage.setItem("hotelId", ids[0]);
     }
 
     console.log("✅ Login successful! User:", user.username, "Role:", user.role);

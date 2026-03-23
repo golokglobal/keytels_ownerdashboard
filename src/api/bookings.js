@@ -41,7 +41,7 @@ export const checkOutBooking = (bookingId) =>
 
 // Cancel a booking
 export const cancelBooking = (bookingId) =>
-  api.post(`/partneredhotel/${bookingId}/cancel`).then(res => res.data);
+  api.put(`/bookings/${bookingId}/cancel`).then(res => res.data);
 
 // Get booking summary for a hotel
 export const getBookingSummary = (hotelId) =>

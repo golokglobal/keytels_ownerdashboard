@@ -87,16 +87,9 @@ export const Login = () => {
         // Small delay to ensure Redux state is fully updated before navigation
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        // Redirect based on backend role
-        if (roleFromServer === 'HOTEL_OWNER') {
-          console.log('🔀 Redirecting to owner dashboard...');
+        // All roles use the same dashboard
+        if (['HOTEL_OWNER', 'HOTEL_MANAGER', 'HOTEL_STAFF'].includes(roleFromServer)) {
           navigate('/dashboard', { replace: true });
-        } else if (roleFromServer === 'HOTEL_MANAGER') {
-          console.log('🔀 Redirecting to manager dashboard...');
-          navigate('/manager-dashboard', { replace: true });
-        } else if (roleFromServer === 'HOTEL_STAFF') {
-          console.log('🔀 Redirecting to staff dashboard...');
-          navigate('/staff-dashboard', { replace: true });
         } else {
           console.warn('⚠️ Unknown role:', roleFromServer);
           setError('Unknown role. Contact support.');

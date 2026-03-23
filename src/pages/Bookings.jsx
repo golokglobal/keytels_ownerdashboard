@@ -27,6 +27,7 @@ import {
   cancelBooking,
   fetchBookingPaymentDetails,
 } from '../store/slices/bookingSlice';
+import { fetchOwnerHotels } from '../store/slices/PartnerHotelslice';
 
 const BOOKING_STATUS_COLORS = {
   BOOKED: 'bg-green-100 text-green-700',
@@ -54,7 +55,31 @@ export const Bookings = () => {
     checkOutLoading,
     cancelLoading,
   } = useSelector((state) => state.bookings);
-  const hotelId = useSelector((state) => state.user.hotelId);
+  const primaryHotelId = useSelector((state) => state.user.hotelId);
+  const { hotels: ownerHotels } = useSelector((state) => state.partneredhotels);
+  const [activeHotelId, setActiveHotelId] = useState(null);
+
+  // Initialise activeHotelId from primary hotel
+  useEffect(() => {
+    if (!activeHotelId && primaryHotelId) {
+      setActiveHotelId(primaryHotelId);
+    }
+  }, [primaryHotelId]);
+
+  // Auto-select first loaded hotel if activeHotelId is still null
+  useEffect(() => {
+    if (!activeHotelId && ownerHotels.length > 0) {
+      const first = ownerHotels[0];
+      setActiveHotelId(first.partneredHotelId || first.id);
+    }
+  }, [ownerHotels]);
+
+  // Fetch owner hotels on mount if not already loaded
+  useEffect(() => {
+    if (ownerHotels.length === 0) {
+      dispatch(fetchOwnerHotels());
+    }
+  }, []);
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState('all');
@@ -67,24 +92,24 @@ export const Bookings = () => {
   const [confirmCancel, setConfirmCancel] = useState({ open: false, bookingId: null });
 
   const loadBookings = useCallback(async () => {
-    if (!hotelId) return;
+    if (!activeHotelId) return;
     try {
       const filters = {};
       if (statusFilter !== 'all') filters.bookingStatus = statusFilter;
       if (paymentFilter !== 'all') filters.paymentStatus = paymentFilter;
       if (refundFilter !== 'all') filters.refundStatus = refundFilter;
-      await dispatch(fetchHotelBookings({ hotelId, filters })).unwrap();
+      await dispatch(fetchHotelBookings({ hotelId: activeHotelId, filters })).unwrap();
     } catch (error) {
       toast.error('Failed to load bookings');
     }
-  }, [hotelId, statusFilter, paymentFilter, refundFilter, dispatch]);
+  }, [activeHotelId, statusFilter, paymentFilter, refundFilter, dispatch]);
 
   useEffect(() => {
-    if (hotelId) {
+    if (activeHotelId) {
       loadBookings();
-      dispatch(fetchBookingSummary(hotelId));
+      dispatch(fetchBookingSummary(activeHotelId));
     }
-  }, [hotelId, statusFilter, paymentFilter, refundFilter]);
+  }, [activeHotelId, statusFilter, paymentFilter, refundFilter]);
 
   // Helper to get guest display name
   const getGuestName = (booking) => {
@@ -293,6 +318,22 @@ export const Bookings = () => {
     return <BookingsSkeleton />;
   }
 
+  if (!activeHotelId) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Bookings</h1>
+          <p className="text-slate-600">Manage all your hotel bookings</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+          <Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-slate-900 mb-2">Select a hotel</h3>
+          <p className="text-slate-600">Please select a hotel to view its bookings</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -310,6 +351,25 @@ export const Bookings = () => {
           Refresh
         </button>
       </div>
+
+      {/* Hotel Selector */}
+      {ownerHotels.length > 1 && (
+        <div className="flex gap-2 flex-wrap">
+          {ownerHotels.map((h) => {
+            const hid = h.partneredHotelId || h.id;
+            return (
+              <button key={hid} onClick={() => setActiveHotelId(hid)}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                  activeHotelId === hid
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'
+                }`}>
+                {h.name || h.hotelName}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Status Filter Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">

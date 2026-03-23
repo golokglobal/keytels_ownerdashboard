@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
-import { Users, Plus, Edit, Trash2, X, Mail, Shield, Building } from 'lucide-react';
+import { Users, Plus, Edit, Trash2, X, Mail, Shield, Building, MapPin } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { DataTable } from '../components/shared/DataTable';
 import { StaffSkeleton } from '../components/common/Skeleton';
@@ -16,17 +16,20 @@ import {
   selectStaffLoading,
 } from '../store/slices/staffSlice';
 import { fetchPermissions } from '../store/slices/PermissionsSlice';
+import { fetchOwnerHotels } from '../store/slices/PartnerHotelslice';
 
 export const Staff = () => {
   const dispatch = useDispatch();
   const staff = useSelector(selectStaff) || [];
   const loading = useSelector(selectStaffLoading);
-  const hotelId = useSelector((state) => state.user.hotelId);
+  const primaryHotelId = useSelector((state) => state.user.hotelId);
+  const { hotels: ownerHotels } = useSelector((state) => state.partneredhotels);
   const permissions = useSelector((state) => state.permissions.list) || [];
 
   const [showModal, setShowModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState({ open: false, staffId: null, staffName: '' });
+  const [selectedHotelId, setSelectedHotelId] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -35,16 +38,33 @@ export const Staff = () => {
     permissionName: '',
   });
 
+  // Load owner hotels on mount
   useEffect(() => {
-    if (hotelId) {
-      loadStaff();
+    if (ownerHotels.length === 0) dispatch(fetchOwnerHotels());
+  }, []);
+
+  // Set selectedHotelId default from primary hotel
+  useEffect(() => {
+    if (!selectedHotelId && primaryHotelId) setSelectedHotelId(primaryHotelId);
+  }, [primaryHotelId]);
+
+  // Auto-select first hotel from list if primary not set
+  useEffect(() => {
+    if (!selectedHotelId && ownerHotels.length > 0) {
+      setSelectedHotelId(ownerHotels[0].partneredHotelId || ownerHotels[0].id);
+    }
+  }, [ownerHotels]);
+
+  useEffect(() => {
+    if (selectedHotelId) {
+      loadStaff(selectedHotelId);
       dispatch(fetchPermissions());
     }
-  }, [dispatch, hotelId]);
+  }, [dispatch, selectedHotelId]);
 
-  const loadStaff = async () => {
+  const loadStaff = async (hid) => {
     try {
-      await dispatch(fetchHotelStaff(hotelId)).unwrap();
+      await dispatch(fetchHotelStaff(hid || selectedHotelId)).unwrap();
     } catch (error) {
       console.error('Failed to load staff:', error);
       toast.error('Failed to load staff members');
@@ -101,7 +121,7 @@ export const Staff = () => {
         name: formData.name,
         email: formData.email,
         role: formData.role,
-        hotelId,
+        hotelId: selectedHotelId,
         ...(!isManager && { permissionName: formData.permissionName }),
       };
 
@@ -121,7 +141,7 @@ export const Staff = () => {
       }
 
       handleCloseModal();
-      loadStaff();
+      loadStaff(selectedHotelId);
     } catch (error) {
       console.error('Failed to save staff:', error);
       toast.error(error || 'Failed to save staff member');
@@ -138,7 +158,7 @@ export const Staff = () => {
     try {
       await dispatch(deleteStaffMember(staffId)).unwrap();
       toast.success('Staff member deleted successfully');
-      loadStaff();
+      loadStaff(selectedHotelId);
     } catch (error) {
       console.error('Failed to delete staff:', error);
       toast.error('Failed to delete staff member');
@@ -360,15 +380,58 @@ export const Staff = () => {
                 </div>
               )}
 
-              {/* Hotel ID (display only) */}
+              {/* Hotel Selector */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Hotel ID
+                  Hotel *
                 </label>
-                <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <Building className="w-4 h-4 text-slate-400" />
-                  <span className="text-sm text-slate-600 font-mono">{hotelId}</span>
-                </div>
+                {ownerHotels.length > 1 ? (
+                  <div className="space-y-2">
+                    {ownerHotels.map((h) => {
+                      const hid = h.partneredHotelId || h.id;
+                      const selected = hid === selectedHotelId;
+                      return (
+                        <button key={hid} type="button" onClick={() => setSelectedHotelId(hid)}
+                          className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all ${
+                            selected
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}>
+                          <div className="flex items-center gap-2">
+                            <Building className={`w-4 h-4 shrink-0 ${selected ? 'text-blue-600' : 'text-slate-400'}`} />
+                            <div>
+                              <p className={`text-sm font-semibold ${selected ? 'text-blue-700' : 'text-slate-900'}`}>
+                                {h.name || h.hotelName}
+                              </p>
+                              {(h.location || h.address) && (
+                                <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                                  <MapPin className="w-3 h-3" />
+                                  {h.location || h.address}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Single hotel — show name + location as read-only */
+                  <div className="flex items-start gap-3 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <Building className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">
+                        {ownerHotels[0]?.name || ownerHotels[0]?.hotelName || 'Your Hotel'}
+                      </p>
+                      {(ownerHotels[0]?.location || ownerHotels[0]?.address) && (
+                        <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                          <MapPin className="w-3 h-3" />
+                          {ownerHotels[0]?.location || ownerHotels[0]?.address}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Actions */}

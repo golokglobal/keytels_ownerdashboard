@@ -1,5 +1,5 @@
 import { useDispatch, useSelector } from "react-redux";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -12,22 +12,10 @@ import {
   deleteRoomImage,
 } from "../store/slices/PartnerHotelslice";
 import {
-  BedDouble,
-  Edit,
-  Trash2,
-  X,
-  Building2,
-  Users,
-  CheckCircle,
-  XCircle,
-  Plus,
-  Image as ImageIcon,
-  Wrench,
-  ChevronLeft,
-  ChevronRight,
-  DollarSign,
-  Hash,
-  RefreshCw,
+  BedDouble, Edit, Trash2, X, Building2, Users,
+  CheckCircle, XCircle, Plus, Image as ImageIcon, Wrench,
+  ChevronLeft, ChevronRight, DollarSign, Hash, RefreshCw,
+  ChevronDown, MapPin,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { ConfirmModal } from "../components/common/ConfirmModal";
@@ -89,7 +77,6 @@ const RoomImageCarousel = ({ images = [] }) => {
   );
 };
 
-/* ── Empty blank field ── */
 const Field = ({ label, children }) => (
   <div className="space-y-1">
     <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</label>
@@ -97,69 +84,38 @@ const Field = ({ label, children }) => (
   </div>
 );
 
-/* ══════════════════════ MAIN COMPONENT ══════════════════════ */
-export const RoomsManagement = () => {
+/* ══════════════════════════════════════════════════════════
+   ROOM PANEL — expanded content for one hotel row
+══════════════════════════════════════════════════════════ */
+const RoomPanel = ({ hotel }) => {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
+  const { roomImages, loading: sliceLoading } = useSelector((s) => s.partneredhotels);
 
-  const { hotels: ownerHotels, roomImages, loading } = useSelector(
-    (state) => state.partneredhotels
-  );
+  const hotelId = hotel?.partneredHotelId || hotel?.id;
 
-  const [selectedHotelId, setSelectedHotelId] = useState("");
   const [rooms, setRooms] = useState([]);
   const [roomsLoading, setRoomsLoading] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
 
   /* modals */
-  const [showAddModal, setShowAddModal]   = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingRoom, setEditingRoom]     = useState(null);
-  const [roomToDelete, setRoomToDelete]   = useState(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showImageModal, setShowImageModal]   = useState(false);
-  const [selectedRoomForImages, setSelectedRoomForImages] = useState(null);
-  const [confirmDeleteImage, setConfirmDeleteImage] = useState({ open: false, imageId: null });
+  const [showAdd, setShowAdd] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editRoom, setEditRoom] = useState(null);
+  const [showDel, setShowDel] = useState(false);
+  const [deleteRoom, setDeleteRoom] = useState(null);
+  const [showImages, setShowImages] = useState(false);
+  const [imageRoom, setImageRoom] = useState(null);
+  const [confirmDelImg, setConfirmDelImg] = useState({ open: false, imageId: null });
 
-  /* room form */
-  const EMPTY_ROOM = { roomType: "", description: "", capacity: "", pricePerNight: "", isAvailable: true, totalRooms: "1" };
-  const [roomForm, setRoomForm] = useState(EMPTY_ROOM);
+  const EMPTY = { roomType: "", description: "", capacity: "", pricePerNight: "", isAvailable: true, totalRooms: "1" };
+  const [roomForm, setRoomForm] = useState(EMPTY);
   const [formError, setFormError] = useState("");
 
-  /* ── Load owner hotels on mount ── */
-  useEffect(() => {
-    dispatch(fetchOwnerHotels());
-  }, [dispatch]);
-
-  /* ── Auto-select first hotel ── */
-  useEffect(() => {
-    if (ownerHotels.length > 0 && !selectedHotelId) {
-      const firstId = ownerHotels[0].partneredHotelId || ownerHotels[0].id;
-      setSelectedHotelId(firstId);
-    }
-  }, [ownerHotels, selectedHotelId]);
-
-  /* ── Fetch rooms when hotel selected ── */
-  useEffect(() => {
-    if (!selectedHotelId) { setRooms([]); return; }
-    const load = async () => {
-      setRoomsLoading(true);
-      try {
-        const result = await dispatch(fetchRoomsByHotel(selectedHotelId)).unwrap();
-        setRooms(Array.isArray(result.rooms) ? result.rooms : []);
-      } catch {
-        setRooms([]);
-      } finally {
-        setRoomsLoading(false);
-      }
-    };
-    load();
-  }, [selectedHotelId, dispatch]);
-
-  const refreshRooms = async () => {
-    if (!selectedHotelId) return;
+  const refresh = async () => {
+    if (!hotelId) return;
     setRoomsLoading(true);
     try {
-      const result = await dispatch(fetchRoomsByHotel(selectedHotelId)).unwrap();
+      const result = await dispatch(fetchRoomsByHotel(hotelId)).unwrap();
       setRooms(Array.isArray(result.rooms) ? result.rooms : []);
     } catch {
       setRooms([]);
@@ -167,6 +123,13 @@ export const RoomsManagement = () => {
       setRoomsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (hasFetched) return;
+    setHasFetched(true);
+    refresh();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ── Add Room ── */
   const handleAddRoom = async (e) => {
@@ -177,7 +140,7 @@ export const RoomsManagement = () => {
     }
     try {
       await dispatch(createHotelRoom({
-        hotelId: selectedHotelId,
+        hotelId,
         data: {
           roomType: roomForm.roomType,
           description: roomForm.description || "",
@@ -187,218 +150,134 @@ export const RoomsManagement = () => {
           totalRooms: Number(roomForm.totalRooms) || 1,
         },
       })).unwrap();
-      toast.success("Room added successfully!");
-      setShowAddModal(false);
-      setRoomForm(EMPTY_ROOM);
+      toast.success("Room added!");
+      setShowAdd(false);
+      setRoomForm(EMPTY);
       setFormError("");
-      await refreshRooms();
+      await refresh();
     } catch (err) {
-      toast.error(typeof err === "string" ? err : err?.message || "Failed to add room");
+      toast.error(err?.message || "Failed to add room");
     }
   };
 
-  /* ── Update Room ── */
+  /* ── Edit Room ── */
   const handleUpdateRoom = async (e) => {
     e.preventDefault();
-    const roomId = editingRoom?.roomId || editingRoom?.id;
-    if (!roomId) { toast.error("Invalid room ID"); return; }
+    const rid = editRoom?.roomId || editRoom?.id;
+    if (!rid) { toast.error("Invalid room ID"); return; }
     try {
       await dispatch(updateHotelRoom({
-        roomId,
+        roomId: rid,
         data: {
-          roomType: editingRoom.roomType,
-          description: editingRoom.description || "",
-          capacity: Number(editingRoom.capacity),
-          pricePerNight: Number(editingRoom.pricePerNight || editingRoom.basePrice),
-          isAvailable: editingRoom.isAvailable ?? true,
-          totalRooms: Number(editingRoom.totalRooms) || 1,
-          status: editingRoom.status || "ACTIVE",
+          roomType: editRoom.roomType,
+          description: editRoom.description || "",
+          capacity: Number(editRoom.capacity),
+          pricePerNight: Number(editRoom.pricePerNight || editRoom.basePrice),
+          isAvailable: editRoom.isAvailable ?? true,
+          totalRooms: Number(editRoom.totalRooms) || 1,
+          status: editRoom.status || "ACTIVE",
         },
       })).unwrap();
-      toast.success("Room updated successfully!");
-      setShowEditModal(false);
-      setEditingRoom(null);
-      await refreshRooms();
+      toast.success("Room updated!");
+      setShowEdit(false);
+      setEditRoom(null);
+      await refresh();
     } catch (err) {
-      toast.error(typeof err === "string" ? err : err?.message || "Failed to update room");
+      toast.error(err?.message || "Failed to update room");
     }
   };
 
-  /* ── Deactivate Room ── */
+  /* ── Delete Room ── */
   const handleDeleteRoom = async () => {
-    const roomId = roomToDelete?.roomId || roomToDelete?.id;
-    if (!roomId) return;
+    const rid = deleteRoom?.roomId || deleteRoom?.id;
+    if (!rid) return;
     try {
-      await dispatch(deleteHotelRoom(roomId)).unwrap();
-      toast.success("Room deactivated successfully!");
-      setShowDeleteModal(false);
-      setRoomToDelete(null);
-      await refreshRooms();
+      await dispatch(deleteHotelRoom(rid)).unwrap();
+      toast.success("Room deactivated!");
+      setShowDel(false);
+      setDeleteRoom(null);
+      await refresh();
     } catch (err) {
-      toast.error(typeof err === "string" ? err : err?.message || "Failed to deactivate room");
+      toast.error(err?.message || "Failed to deactivate room");
     }
   };
 
-  /* ── Room Images ── */
-  const handleOpenImageModal = async (room) => {
-    setSelectedRoomForImages(room);
-    setShowImageModal(true);
-    try {
-      await dispatch(fetchRoomImages(room.roomId || room.id)).unwrap();
-    } catch { /* 204 returns [] already */ }
+  /* ── Images ── */
+  const handleOpenImages = async (room) => {
+    setImageRoom(room);
+    setShowImages(true);
+    try { await dispatch(fetchRoomImages(room.roomId || room.id)).unwrap(); }
+    catch { /* noop */ }
   };
 
-  const handleDeleteImage = (imageId) => setConfirmDeleteImage({ open: true, imageId });
-
-  const confirmImageDelete = async () => {
-    const { imageId } = confirmDeleteImage;
-    const roomId = selectedRoomForImages?.roomId || selectedRoomForImages?.id;
-    setConfirmDeleteImage({ open: false, imageId: null });
+  const confirmImgDelete = async () => {
+    const { imageId } = confirmDelImg;
+    const rid = imageRoom?.roomId || imageRoom?.id;
+    setConfirmDelImg({ open: false, imageId: null });
     try {
-      await dispatch(deleteRoomImage({ imageId, roomId })).unwrap();
+      await dispatch(deleteRoomImage({ imageId, roomId: rid })).unwrap();
       toast.success("Image removed!");
     } catch (err) {
       toast.error(err?.message || "Image not found");
     }
   };
 
-  /* ── Stats ── */
-  const totalRooms       = rooms.reduce((s, r) => s + (r.totalRooms || 1), 0);
-  const availableRooms   = rooms.filter((r) => r.isAvailable !== false).length;
+  const currentImages = imageRoom ? roomImages[imageRoom.roomId || imageRoom.id] || [] : [];
+  const totalRooms = rooms.reduce((s, r) => s + (r.totalRooms || 1), 0);
+  const availableRooms = rooms.filter((r) => r.isAvailable !== false).length;
   const maintenanceRooms = rooms.filter((r) => r.status?.toLowerCase() === "maintenance").length;
 
-  const currentImages = selectedRoomForImages
-    ? roomImages[selectedRoomForImages.roomId || selectedRoomForImages.id] || []
-    : [];
-
-  /* ════════════════════════════════════════ RENDER ════════════════════════════════════════ */
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-
-        {/* ── Header ── */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shrink-0">
-              <BedDouble className="w-5 h-5 text-white" />
+    <div className="border-t border-slate-100 bg-slate-50/60">
+      {/* Header row */}
+      <div className="px-6 py-4 flex items-center justify-between bg-white border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          {/* Stats pills */}
+          {rooms.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                <Hash className="w-3 h-3" /> {totalRooms} room{totalRooms !== 1 ? "s" : ""}
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                <CheckCircle className="w-3 h-3" /> {availableRooms} available
+              </span>
+              {maintenanceRooms > 0 && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                  <Wrench className="w-3 h-3" /> {maintenanceRooms} maintenance
+                </span>
+              )}
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Rooms</h1>
-              <p className="text-slate-500 text-sm">Manage rooms across your properties</p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={refreshRooms}
-              disabled={!selectedHotelId || roomsLoading}
-              className="p-2.5 border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-40"
-            >
-              <RefreshCw className={`w-4 h-4 ${roomsLoading ? "animate-spin" : ""}`} />
-            </button>
-            {selectedHotelId ? (
-              <button
-                onClick={() => { setRoomForm(EMPTY_ROOM); setFormError(""); setShowAddModal(true); }}
-                className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl font-medium text-sm hover:bg-slate-800 transition-colors"
-              >
-                <Plus className="w-4 h-4" /> Add Room
-              </button>
-            ) : (
-              <button
-                onClick={() => navigate("/add-hotel")}
-                className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl font-medium text-sm hover:bg-slate-800 transition-colors"
-              >
-                <Building2 className="w-4 h-4" /> Add Hotel
-              </button>
-            )}
-          </div>
+          )}
         </div>
+        <div className="flex gap-2">
+          <button onClick={refresh} disabled={roomsLoading}
+            className="p-2 border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-40">
+            <RefreshCw className={`w-3.5 h-3.5 ${roomsLoading ? "animate-spin" : ""}`} />
+          </button>
+          <button onClick={() => { setRoomForm(EMPTY); setFormError(""); setShowAdd(true); }}
+            className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-xl font-medium text-xs hover:bg-slate-800 transition-colors">
+            <Plus className="w-3.5 h-3.5" /> Add Room
+          </button>
+        </div>
+      </div>
 
-        {/* ── Hotel Selector ── */}
-        {ownerHotels.length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <Building2 className="w-4 h-4 text-slate-500" /> Select Hotel
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {ownerHotels.map((hotel) => {
-                const hid = hotel.partneredHotelId || hotel.id;
-                const selected = hid === selectedHotelId;
-                return (
-                  <button
-                    key={hid}
-                    type="button"
-                    onClick={() => setSelectedHotelId(hid)}
-                    className={`text-left p-4 rounded-xl border transition-all ${
-                      selected
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-slate-50 hover:border-slate-400 text-slate-700"
-                    }`}
-                  >
-                    <p className={`font-semibold text-sm truncate ${selected ? "text-white" : "text-slate-900"}`}>
-                      {hotel.name}
-                    </p>
-                    <p className={`text-xs mt-1 truncate ${selected ? "text-slate-300" : "text-slate-500"}`}>
-                      {hotel.location || "No location"}
-                    </p>
-                    <div className={`inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-xs font-medium ${
-                      hotel.status === "ACTIVE"
-                        ? selected ? "bg-emerald-400/20 text-emerald-200" : "bg-emerald-100 text-emerald-700"
-                        : selected ? "bg-white/20 text-white/70" : "bg-slate-200 text-slate-500"
-                    }`}>
-                      {hotel.status === "ACTIVE" ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                      {hotel.status}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ── Stats ── */}
-        {selectedHotelId && rooms.length > 0 && (
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: "Total Rooms",  value: totalRooms,       color: "text-slate-900",   bg: "bg-slate-100"   },
-              { label: "Available",    value: availableRooms,   color: "text-emerald-700", bg: "bg-emerald-100" },
-              { label: "Maintenance",  value: maintenanceRooms, color: "text-amber-700",   bg: "bg-amber-100"   },
-            ].map((s, i) => (
-              <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
-                className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{s.label}</p>
-                <p className={`text-3xl font-bold mt-1 ${s.color}`}>{s.value}</p>
-              </motion.div>
-            ))}
-          </div>
-        )}
-
-        {/* ── Empty / Loading / Grid ── */}
-        {!selectedHotelId ? (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 text-center">
-            <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <BedDouble className="w-8 h-8 text-slate-400" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">Select a Hotel</h3>
-            <p className="text-slate-500 text-sm">Choose a hotel above to manage its rooms.</p>
-          </div>
-        ) : roomsLoading ? (
-          <div className="flex items-center justify-center py-24">
+      {/* Room cards */}
+      <div className="p-6">
+        {roomsLoading ? (
+          <div className="flex items-center justify-center py-12">
             <div className="flex flex-col items-center gap-3">
-              <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-900 border-t-transparent" />
+              <div className="animate-spin rounded-full h-8 w-8 border-4 border-slate-900 border-t-transparent" />
               <p className="text-slate-500 text-sm">Loading rooms…</p>
             </div>
           </div>
         ) : rooms.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 text-center">
-            <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <BedDouble className="w-8 h-8 text-slate-400" />
+          <div className="text-center py-12">
+            <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <BedDouble className="w-7 h-7 text-slate-400" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">No Rooms Yet</h3>
-            <p className="text-slate-500 text-sm mb-6">Add your first room to get started.</p>
-            <button
-              onClick={() => { setRoomForm(EMPTY_ROOM); setFormError(""); setShowAddModal(true); }}
-              className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-semibold text-sm hover:bg-slate-800 transition-colors inline-flex items-center gap-2"
-            >
+            <p className="text-slate-500 text-sm font-medium mb-4">No rooms yet for this hotel.</p>
+            <button onClick={() => { setRoomForm(EMPTY); setFormError(""); setShowAdd(true); }}
+              className="px-5 py-2 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-colors inline-flex items-center gap-2">
               <Plus className="w-4 h-4" /> Add First Room
             </button>
           </div>
@@ -411,13 +290,11 @@ export const RoomsManagement = () => {
               const imgs = roomImages[rid] || room.images || [];
 
               return (
-                <motion.div
-                  key={rid}
-                  initial={{ opacity: 0, y: 20 }}
+                <motion.div key={rid}
+                  initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05, type: "spring", stiffness: 200, damping: 20 }}
-                  className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col group"
-                >
+                  transition={{ delay: index * 0.04, type: "spring", stiffness: 200, damping: 22 }}
+                  className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col">
                   {/* Image */}
                   <div className="relative">
                     <RoomImageCarousel images={imgs} />
@@ -429,7 +306,7 @@ export const RoomsManagement = () => {
                   {/* Body */}
                   <div className="flex flex-col flex-1 p-5 gap-3">
                     <div>
-                      <h3 className="font-bold text-slate-900 text-lg capitalize">{room.roomType}</h3>
+                      <h3 className="font-bold text-slate-900 text-base capitalize">{room.roomType}</h3>
                       {room.description && (
                         <p className="text-sm text-slate-500 mt-1 line-clamp-2">{room.description}</p>
                       )}
@@ -444,7 +321,7 @@ export const RoomsManagement = () => {
                       </div>
                       <div className="bg-emerald-50 rounded-xl p-3 text-center">
                         <DollarSign className="w-4 h-4 text-emerald-600 mx-auto mb-1" />
-                        <p className="text-sm font-bold text-emerald-700">${room.pricePerNight}</p>
+                        <p className="text-sm font-bold text-emerald-700">${room.pricePerNight || room.basePrice}</p>
                         <p className="text-xs text-slate-500">/ night</p>
                       </div>
                       <div className="bg-violet-50 rounded-xl p-3 text-center">
@@ -458,23 +335,17 @@ export const RoomsManagement = () => {
 
                     {/* Actions */}
                     <div className="flex gap-2 pt-3 border-t border-slate-100">
-                      <button
-                        onClick={() => handleOpenImageModal(room)}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-100 transition-colors"
-                      >
+                      <button onClick={() => handleOpenImages(room)}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-100 transition-colors">
                         <ImageIcon className="w-3.5 h-3.5" />
                         Images {imgs.length > 0 && `(${imgs.length})`}
                       </button>
-                      <button
-                        onClick={() => { setEditingRoom({ ...room }); setShowEditModal(true); }}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-700 transition-colors"
-                      >
+                      <button onClick={() => { setEditRoom({ ...room }); setShowEdit(true); }}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-700 transition-colors">
                         <Edit className="w-3.5 h-3.5" /> Edit
                       </button>
-                      <button
-                        onClick={() => { setRoomToDelete(room); setShowDeleteModal(true); }}
-                        className="p-2 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs hover:bg-red-100 transition-colors"
-                      >
+                      <button onClick={() => { setDeleteRoom(room); setShowDel(true); }}
+                        className="p-2 bg-red-50 border border-red-200 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -486,10 +357,10 @@ export const RoomsManagement = () => {
         )}
       </div>
 
-      {/* ══════════════════ ADD ROOM MODAL ══════════════════ */}
+      {/* ── Add Room Modal ── */}
       <AnimatePresence>
-        {showAddModal && (
-          <Modal title="Add New Room" onClose={() => setShowAddModal(false)}>
+        {showAdd && (
+          <Modal title="Add New Room" onClose={() => setShowAdd(false)}>
             <form onSubmit={handleAddRoom} className="space-y-4">
               {formError && (
                 <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{formError}</p>
@@ -537,50 +408,50 @@ export const RoomsManagement = () => {
                   ))}
                 </div>
               </Field>
-              <ModalFooter onCancel={() => setShowAddModal(false)} label="Add Room" loading={loading} />
+              <ModalFooter onCancel={() => setShowAdd(false)} label="Add Room" loading={sliceLoading} />
             </form>
           </Modal>
         )}
       </AnimatePresence>
 
-      {/* ══════════════════ EDIT ROOM MODAL ══════════════════ */}
+      {/* ── Edit Room Modal ── */}
       <AnimatePresence>
-        {showEditModal && editingRoom && (
-          <Modal title="Edit Room" onClose={() => { setShowEditModal(false); setEditingRoom(null); }}>
+        {showEdit && editRoom && (
+          <Modal title="Edit Room" onClose={() => { setShowEdit(false); setEditRoom(null); }}>
             <form onSubmit={handleUpdateRoom} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Room Type *">
-                  <input value={editingRoom.roomType || ""} onChange={(e) => setEditingRoom((p) => ({ ...p, roomType: e.target.value }))}
+                  <input value={editRoom.roomType || ""} onChange={(e) => setEditRoom((p) => ({ ...p, roomType: e.target.value }))}
                     placeholder="e.g. Deluxe Queen" className={inputCls} required />
                 </Field>
                 <Field label="Total Units">
-                  <input type="number" min="1" value={editingRoom.totalRooms || 1}
-                    onChange={(e) => setEditingRoom((p) => ({ ...p, totalRooms: e.target.value }))}
+                  <input type="number" min="1" value={editRoom.totalRooms || 1}
+                    onChange={(e) => setEditRoom((p) => ({ ...p, totalRooms: e.target.value }))}
                     className={inputCls} />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Capacity *">
-                  <input type="number" min="1" value={editingRoom.capacity || ""}
-                    onChange={(e) => setEditingRoom((p) => ({ ...p, capacity: e.target.value }))}
+                  <input type="number" min="1" value={editRoom.capacity || ""}
+                    onChange={(e) => setEditRoom((p) => ({ ...p, capacity: e.target.value }))}
                     className={inputCls} required />
                 </Field>
                 <Field label="Price / Night *">
                   <input type="number" min="0" step="0.01"
-                    value={editingRoom.pricePerNight || editingRoom.basePrice || ""}
-                    onChange={(e) => setEditingRoom((p) => ({ ...p, pricePerNight: e.target.value }))}
+                    value={editRoom.pricePerNight || editRoom.basePrice || ""}
+                    onChange={(e) => setEditRoom((p) => ({ ...p, pricePerNight: e.target.value }))}
                     className={inputCls} required />
                 </Field>
               </div>
               <Field label="Description">
-                <textarea value={editingRoom.description || ""}
-                  onChange={(e) => setEditingRoom((p) => ({ ...p, description: e.target.value }))}
+                <textarea value={editRoom.description || ""}
+                  onChange={(e) => setEditRoom((p) => ({ ...p, description: e.target.value }))}
                   rows="2" className={`${inputCls} resize-none`} />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Status">
-                  <select value={editingRoom.status || "ACTIVE"}
-                    onChange={(e) => setEditingRoom((p) => ({ ...p, status: e.target.value }))}
+                  <select value={editRoom.status || "ACTIVE"}
+                    onChange={(e) => setEditRoom((p) => ({ ...p, status: e.target.value }))}
                     className={inputCls}>
                     <option value="ACTIVE">Active</option>
                     <option value="maintenance">Maintenance</option>
@@ -588,25 +459,25 @@ export const RoomsManagement = () => {
                   </select>
                 </Field>
                 <Field label="Availability">
-                  <select value={String(editingRoom.isAvailable ?? true)}
-                    onChange={(e) => setEditingRoom((p) => ({ ...p, isAvailable: e.target.value === "true" }))}
+                  <select value={String(editRoom.isAvailable ?? true)}
+                    onChange={(e) => setEditRoom((p) => ({ ...p, isAvailable: e.target.value === "true" }))}
                     className={inputCls}>
                     <option value="true">Available</option>
                     <option value="false">Unavailable</option>
                   </select>
                 </Field>
               </div>
-              <ModalFooter onCancel={() => { setShowEditModal(false); setEditingRoom(null); }} label="Save Changes" loading={loading} />
+              <ModalFooter onCancel={() => { setShowEdit(false); setEditRoom(null); }} label="Save Changes" loading={sliceLoading} />
             </form>
           </Modal>
         )}
       </AnimatePresence>
 
-      {/* ══════════════════ IMAGES MODAL ══════════════════ */}
+      {/* ── Images Modal ── */}
       <AnimatePresence>
-        {showImageModal && selectedRoomForImages && (
-          <Modal title={`Images — ${selectedRoomForImages.roomType}`}
-            onClose={() => { setShowImageModal(false); setSelectedRoomForImages(null); }}>
+        {showImages && imageRoom && (
+          <Modal title={`Images — ${imageRoom.roomType}`}
+            onClose={() => { setShowImages(false); setImageRoom(null); }}>
             <div className="space-y-4">
               {currentImages.length === 0 ? (
                 <div className="border-2 border-dashed border-slate-200 rounded-xl p-10 text-center">
@@ -620,11 +491,8 @@ export const RoomsManagement = () => {
                     return (
                       <div key={imgId} className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-100">
                         <img src={img.imageUrl || img.url} alt="Room" className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteImage(imgId)}
-                          className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-red-700"
-                        >
+                        <button type="button" onClick={() => setConfirmDelImg({ open: true, imageId: imgId })}
+                          className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-red-700">
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
@@ -633,7 +501,7 @@ export const RoomsManagement = () => {
                 </div>
               )}
               <p className="text-xs text-slate-400 text-center">
-                To add images, use the room edit form or upload via your hotel management system.
+                To add images, use the room edit form or your hotel management system.
               </p>
             </div>
           </Modal>
@@ -642,24 +510,188 @@ export const RoomsManagement = () => {
 
       {/* ── Confirm Deactivate ── */}
       <ConfirmModal
-        isOpen={showDeleteModal}
+        isOpen={showDel}
         title="Deactivate Room"
-        message={`Deactivate "${roomToDelete?.roomType}"? It will be hidden from guests.`}
+        message={`Deactivate "${deleteRoom?.roomType}"? It will be hidden from guests.`}
         confirmLabel="Deactivate"
-        loading={loading}
+        loading={sliceLoading}
         onConfirm={handleDeleteRoom}
-        onCancel={() => { setShowDeleteModal(false); setRoomToDelete(null); }}
+        onCancel={() => { setShowDel(false); setDeleteRoom(null); }}
       />
 
       {/* ── Confirm Delete Image ── */}
       <ConfirmModal
-        isOpen={confirmDeleteImage.open}
+        isOpen={confirmDelImg.open}
         title="Remove Image"
         message="Remove this image from the room?"
         confirmLabel="Remove"
-        onConfirm={confirmImageDelete}
-        onCancel={() => setConfirmDeleteImage({ open: false, imageId: null })}
+        onConfirm={confirmImgDelete}
+        onCancel={() => setConfirmDelImg({ open: false, imageId: null })}
       />
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════════════
+   HOTEL ROW — one row in the hotel list
+══════════════════════════════════════════════════════════ */
+const HotelRow = ({ hotel, index, expanded, onToggle }) => {
+  const hid = hotel.partneredHotelId || hotel.id;
+  const isActive = hotel.status === "ACTIVE";
+  const thumb = hotel.hotelImages?.[0]?.imageUrl || hotel.hotelImages?.[0]?.url || null;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04, type: "spring", stiffness: 220, damping: 22 }}
+      className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+
+      {/* Row header — click to toggle */}
+      <button type="button" onClick={() => onToggle(hid)}
+        className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left">
+
+        {/* Thumb */}
+        <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-slate-100">
+          {thumb ? (
+            <img src={thumb} alt={hotel.name} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Building2 className="w-6 h-6 text-slate-400" />
+            </div>
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-slate-900 truncate">{hotel.name || hotel.hotelName}</p>
+          {hotel.location && (
+            <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+              <MapPin className="w-3 h-3 shrink-0" /> {hotel.location}
+            </p>
+          )}
+        </div>
+
+        {/* Status pill */}
+        <span className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border shrink-0 ${
+          isActive ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"
+        }`}>
+          {isActive ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+          {hotel.status}
+        </span>
+
+        {/* Chevron */}
+        <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}
+          className="shrink-0 ml-1">
+          <ChevronDown className="w-5 h-5 text-slate-400" />
+        </motion.div>
+      </button>
+
+      {/* Expanded room panel */}
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            key="panel"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.28, ease: "easeInOut" }}
+            style={{ overflow: "hidden" }}
+          >
+            <RoomPanel hotel={hotel} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
+
+/* ══════════════════════════════════════════════════════════
+   MAIN PAGE
+══════════════════════════════════════════════════════════ */
+export const RoomsManagement = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { hotels: ownerHotels, loading } = useSelector((s) => s.partneredhotels);
+  const [expandedId, setExpandedId] = useState(null);
+  const autoExpandedRef = useRef(false);
+
+  useEffect(() => {
+    dispatch(fetchOwnerHotels());
+  }, [dispatch]);
+
+  /* Auto-expand first hotel once */
+  useEffect(() => {
+    if (!autoExpandedRef.current && ownerHotels.length > 0) {
+      autoExpandedRef.current = true;
+      setExpandedId(ownerHotels[0].partneredHotelId || ownerHotels[0].id);
+    }
+  }, [ownerHotels]);
+
+  const toggle = (hid) => setExpandedId((prev) => (prev === hid ? null : hid));
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="w-full px-4 sm:px-6 py-8 space-y-6">
+
+        {/* ── Header ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shrink-0">
+              <BedDouble className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Rooms</h1>
+              <p className="text-slate-500 text-sm">Manage rooms across your properties</p>
+            </div>
+          </div>
+          <button onClick={() => navigate("/add-hotel")}
+            className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl font-medium text-sm hover:bg-slate-800 transition-colors">
+            <Building2 className="w-4 h-4" /> Add Hotel
+          </button>
+        </div>
+
+        {/* ── Loading ── */}
+        {loading && ownerHotels.length === 0 && (
+          <div className="flex items-center justify-center py-24">
+            <div className="flex flex-col items-center gap-3">
+              <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-900 border-t-transparent" />
+              <p className="text-slate-500 text-sm">Loading hotels…</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Empty ── */}
+        {!loading && ownerHotels.length === 0 && (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 text-center">
+            <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Building2 className="w-8 h-8 text-slate-400" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">No Hotels Yet</h3>
+            <p className="text-slate-500 text-sm mb-6">Add your first hotel to manage its rooms.</p>
+            <button onClick={() => navigate("/add-hotel")}
+              className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-semibold text-sm hover:bg-slate-800 transition-colors inline-flex items-center gap-2">
+              <Plus className="w-4 h-4" /> Add Hotel
+            </button>
+          </div>
+        )}
+
+        {/* ── Hotel list ── */}
+        {ownerHotels.length > 0 && (
+          <div className="space-y-3">
+            {ownerHotels.map((hotel, index) => {
+              const hid = hotel.partneredHotelId || hotel.id;
+              return (
+                <HotelRow
+                  key={hid}
+                  hotel={hotel}
+                  index={index}
+                  expanded={expandedId === hid}
+                  onToggle={toggle}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
