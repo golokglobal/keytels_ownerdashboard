@@ -149,35 +149,6 @@ export const fetchHotelRevenue = createAsyncThunk(
   }
 );
 
-// Fetch payment for every booking of a hotel and sum totalAmount
-export const fetchHotelPayments = createAsyncThunk(
-  'bookings/fetchHotelPayments',
-  async (hotelId, { rejectWithValue }) => {
-    try {
-      const bookingsResponse = await api.getHotelBookings(hotelId);
-      const bookings = Array.isArray(bookingsResponse)
-        ? bookingsResponse
-        : bookingsResponse.bookings || [];
-
-      const paymentResults = await Promise.allSettled(
-        bookings.map((b) => api.getBookingPaymentDetails(b.bookingId))
-      );
-
-      const total = paymentResults.reduce((sum, result) => {
-        if (result.status === 'fulfilled') {
-          const amount = result.value?.totalAmount ?? result.value?.payment?.totalAmount ?? 0;
-          return sum + amount;
-        }
-        return sum;
-      }, 0);
-
-      return total;
-    } catch (error) {
-      console.error('❌ Error fetching hotel payments:', error);
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch payments');
-    }
-  }
-);
 
 // Fetch booking payment details
 export const fetchBookingPaymentDetails = createAsyncThunk(
@@ -193,6 +164,7 @@ export const fetchBookingPaymentDetails = createAsyncThunk(
   }
 );
 
+
 /* ============================ SLICE ============================ */
 
 const initialState = {
@@ -203,7 +175,6 @@ const initialState = {
   paymentDetails: null,
   summary: null,
   revenue: null,
-  paymentsTotal: null,
   loading: false,
   checkInLoading: false,
   checkOutLoading: false,
@@ -234,7 +205,6 @@ const bookingSlice = createSlice({
       state.selectedBooking = null;
       state.summary = null;
       state.revenue = null;
-      state.paymentsTotal = null;
     },
   },
   extraReducers: (builder) => {
@@ -342,11 +312,6 @@ const bookingSlice = createSlice({
         state.revenue = action.payload;
       })
 
-      // ────────────── FETCH HOTEL PAYMENTS TOTAL ──────────────
-      .addCase(fetchHotelPayments.fulfilled, (state, action) => {
-        state.paymentsTotal = action.payload;
-      })
-
       // ────────────── FETCH PAYMENT DETAILS ──────────────
       .addCase(fetchBookingPaymentDetails.fulfilled, (state, action) => {
         state.paymentDetails = action.payload;
@@ -365,7 +330,8 @@ export const selectSelectedBooking = (state) => state.bookings.selectedBooking;
 export const selectPaymentDetails = (state) => state.bookings.paymentDetails;
 export const selectBookingSummary = (state) => state.bookings.summary;
 export const selectRevenue = (state) => state.bookings.revenue;
-export const selectPaymentsTotal = (state) => state.bookings.paymentsTotal;
+export const selectPaymentsTotal = (state) =>
+  state.bookings.bookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
 export const selectBookingsLoading = (state) => state.bookings.loading;
 export const selectCheckInLoading = (state) => state.bookings.checkInLoading;
 export const selectCheckOutLoading = (state) => state.bookings.checkOutLoading;

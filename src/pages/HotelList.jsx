@@ -610,7 +610,7 @@ export const HotelList = () => {
                 {isHotelManager ? 'My Hotel' : 'Hotels'}
               </h1>
               <p className="text-slate-500 text-sm">
-                {isHotelManager ? 'Manage your assigned property' : 'Manage your partnered properties'}
+                {isHotelManager ? 'Manage your assigned property' : 'Manage your properties'}
               </p>
             </div>
           </div>

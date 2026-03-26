@@ -1,5 +1,5 @@
 import { useDispatch, useSelector } from "react-redux";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -15,10 +15,10 @@ import {
   BedDouble, Edit, Trash2, X, Building2, Users,
   CheckCircle, XCircle, Plus, Image as ImageIcon, Wrench,
   ChevronLeft, ChevronRight, DollarSign, Hash, RefreshCw,
-  ChevronDown, MapPin,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { ConfirmModal } from "../components/common/ConfirmModal";
+import { selectPrimaryHotelId } from "../store/slices/userSlice";
 
 /* ── Shared input class ── */
 const inputCls =
@@ -533,165 +533,92 @@ const RoomPanel = ({ hotel }) => {
 };
 
 /* ══════════════════════════════════════════════════════════
-   HOTEL ROW — one row in the hotel list
-══════════════════════════════════════════════════════════ */
-const HotelRow = ({ hotel, index, expanded, onToggle }) => {
-  const hid = hotel.partneredHotelId || hotel.id;
-  const isActive = hotel.status === "ACTIVE";
-  const thumb = hotel.hotelImages?.[0]?.imageUrl || hotel.hotelImages?.[0]?.url || null;
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.04, type: "spring", stiffness: 220, damping: 22 }}
-      className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-
-      {/* Row header — click to toggle */}
-      <button type="button" onClick={() => onToggle(hid)}
-        className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left">
-
-        {/* Thumb */}
-        <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-slate-100">
-          {thumb ? (
-            <img src={thumb} alt={hotel.name} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <Building2 className="w-6 h-6 text-slate-400" />
-            </div>
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-slate-900 truncate">{hotel.name || hotel.hotelName}</p>
-          {hotel.location && (
-            <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5 truncate">
-              <MapPin className="w-3 h-3 shrink-0" /> {hotel.location}
-            </p>
-          )}
-        </div>
-
-        {/* Status pill */}
-        <span className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border shrink-0 ${
-          isActive ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"
-        }`}>
-          {isActive ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-          {hotel.status}
-        </span>
-
-        {/* Chevron */}
-        <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}
-          className="shrink-0 ml-1">
-          <ChevronDown className="w-5 h-5 text-slate-400" />
-        </motion.div>
-      </button>
-
-      {/* Expanded room panel */}
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            key="panel"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.28, ease: "easeInOut" }}
-            style={{ overflow: "hidden" }}
-          >
-            <RoomPanel hotel={hotel} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-};
-
-/* ══════════════════════════════════════════════════════════
-   MAIN PAGE
+   MAIN PAGE — tab-based hotel selector
 ══════════════════════════════════════════════════════════ */
 export const RoomsManagement = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { hotels: ownerHotels, loading } = useSelector((s) => s.partneredhotels);
-  const [expandedId, setExpandedId] = useState(null);
-  const autoExpandedRef = useRef(false);
+  const activeHotelId = useSelector(selectPrimaryHotelId);
 
   useEffect(() => {
     dispatch(fetchOwnerHotels());
   }, [dispatch]);
 
-  /* Auto-expand first hotel once */
-  useEffect(() => {
-    if (!autoExpandedRef.current && ownerHotels.length > 0) {
-      autoExpandedRef.current = true;
-      setExpandedId(ownerHotels[0].partneredHotelId || ownerHotels[0].id);
-    }
-  }, [ownerHotels]);
-
-  const toggle = (hid) => setExpandedId((prev) => (prev === hid ? null : hid));
+  const activeHotel = ownerHotels.find(
+    (h) => (h.partneredHotelId || h.id) === activeHotelId
+  ) || null;
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="w-full px-4 sm:px-6 py-8 space-y-6">
+    <div className="space-y-6">
 
-        {/* ── Header ── */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shrink-0">
-              <BedDouble className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Rooms</h1>
-              <p className="text-slate-500 text-sm">Manage rooms across your properties</p>
-            </div>
+      {/* ── Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shrink-0">
+            <BedDouble className="w-5 h-5 text-white" />
           </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Rooms</h1>
+            <p className="text-slate-500 text-sm">Manage rooms across your properties</p>
+          </div>
+        </div>
+        <button onClick={() => navigate("/add-hotel")}
+          className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl font-medium text-sm hover:bg-slate-800 transition-colors">
+          <Building2 className="w-4 h-4" /> Add Hotel
+        </button>
+      </div>
+
+      {/* ── Loading ── */}
+      {loading && ownerHotels.length === 0 && (
+        <div className="flex items-center justify-center py-24">
+          <div className="flex flex-col items-center gap-3">
+            <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-900 border-t-transparent" />
+            <p className="text-slate-500 text-sm">Loading hotels…</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Empty ── */}
+      {!loading && ownerHotels.length === 0 && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 text-center">
+          <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Building2 className="w-8 h-8 text-slate-400" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 mb-2">No Hotels Yet</h3>
+          <p className="text-slate-500 text-sm mb-6">Add your first hotel to manage its rooms.</p>
           <button onClick={() => navigate("/add-hotel")}
-            className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl font-medium text-sm hover:bg-slate-800 transition-colors">
-            <Building2 className="w-4 h-4" /> Add Hotel
+            className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-semibold text-sm hover:bg-slate-800 transition-colors inline-flex items-center gap-2">
+            <Plus className="w-4 h-4" /> Add Hotel
           </button>
         </div>
+      )}
 
-        {/* ── Loading ── */}
-        {loading && ownerHotels.length === 0 && (
-          <div className="flex items-center justify-center py-24">
-            <div className="flex flex-col items-center gap-3">
-              <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-900 border-t-transparent" />
-              <p className="text-slate-500 text-sm">Loading hotels…</p>
-            </div>
-          </div>
-        )}
+      {!activeHotelId && ownerHotels.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 text-center">
+          <Building2 className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <h3 className="text-lg font-semibold text-slate-900 mb-1">Select a hotel</h3>
+          <p className="text-slate-600 text-sm">Choose a hotel from the header to manage rooms.</p>
+        </div>
+      )}
 
-        {/* ── Empty ── */}
-        {!loading && ownerHotels.length === 0 && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 text-center">
-            <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Building2 className="w-8 h-8 text-slate-400" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">No Hotels Yet</h3>
-            <p className="text-slate-500 text-sm mb-6">Add your first hotel to manage its rooms.</p>
-            <button onClick={() => navigate("/add-hotel")}
-              className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-semibold text-sm hover:bg-slate-800 transition-colors inline-flex items-center gap-2">
-              <Plus className="w-4 h-4" /> Add Hotel
-            </button>
-          </div>
-        )}
-
-        {/* ── Hotel list ── */}
-        {ownerHotels.length > 0 && (
-          <div className="space-y-3">
-            {ownerHotels.map((hotel, index) => {
-              const hid = hotel.partneredHotelId || hotel.id;
-              return (
-                <HotelRow
-                  key={hid}
-                  hotel={hotel}
-                  index={index}
-                  expanded={expandedId === hid}
-                  onToggle={toggle}
-                />
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {/* Room panel for active hotel */}
+      {ownerHotels.length > 0 && activeHotelId && (
+        <AnimatePresence mode="wait">
+          {activeHotel && (
+            <motion.div
+              key={activeHotelId}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18, ease: "easeInOut" }}
+              className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
+            >
+              <RoomPanel hotel={activeHotel} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Users, Plus, Edit, Trash2, X, Mail, Shield, Building, MapPin } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { DataTable } from '../components/shared/DataTable';
@@ -14,22 +14,24 @@ import {
   deleteStaffMember,
   selectStaff,
   selectStaffLoading,
+  clearStaff,
 } from '../store/slices/staffSlice';
 import { fetchPermissions } from '../store/slices/PermissionsSlice';
 import { fetchOwnerHotels } from '../store/slices/PartnerHotelslice';
+import { selectPrimaryHotelId } from '../store/slices/userSlice';
 
 export const Staff = () => {
   const dispatch = useDispatch();
   const staff = useSelector(selectStaff) || [];
   const loading = useSelector(selectStaffLoading);
-  const primaryHotelId = useSelector((state) => state.user.hotelId);
+  const activeHotelId = useSelector(selectPrimaryHotelId);
   const { hotels: ownerHotels } = useSelector((state) => state.partneredhotels);
   const permissions = useSelector((state) => state.permissions.list) || [];
+  const activeHotel = ownerHotels.find((h) => (h.partneredHotelId || h.id) === activeHotelId) || null;
 
   const [showModal, setShowModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState({ open: false, staffId: null, staffName: '' });
-  const [selectedHotelId, setSelectedHotelId] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -43,28 +45,17 @@ export const Staff = () => {
     if (ownerHotels.length === 0) dispatch(fetchOwnerHotels());
   }, []);
 
-  // Set selectedHotelId default from primary hotel
   useEffect(() => {
-    if (!selectedHotelId && primaryHotelId) setSelectedHotelId(primaryHotelId);
-  }, [primaryHotelId]);
-
-  // Auto-select first hotel from list if primary not set
-  useEffect(() => {
-    if (!selectedHotelId && ownerHotels.length > 0) {
-      setSelectedHotelId(ownerHotels[0].partneredHotelId || ownerHotels[0].id);
-    }
-  }, [ownerHotels]);
-
-  useEffect(() => {
-    if (selectedHotelId) {
-      loadStaff(selectedHotelId);
+    if (activeHotelId) {
+      dispatch(clearStaff());
+      loadStaff(activeHotelId);
       dispatch(fetchPermissions());
     }
-  }, [dispatch, selectedHotelId]);
+  }, [dispatch, activeHotelId]);
 
   const loadStaff = async (hid) => {
     try {
-      await dispatch(fetchHotelStaff(hid || selectedHotelId)).unwrap();
+      await dispatch(fetchHotelStaff(hid || activeHotelId)).unwrap();
     } catch (error) {
       console.error('Failed to load staff:', error);
       toast.error('Failed to load staff members');
@@ -109,6 +100,11 @@ export const Staff = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!activeHotelId) {
+      toast.error('Please select a hotel from the header first');
+      return;
+    }
+
     if (!formData.name || !formData.email || (!editingStaff && !formData.password)) {
       toast.error('Please fill in all required fields');
       return;
@@ -121,7 +117,7 @@ export const Staff = () => {
         name: formData.name,
         email: formData.email,
         role: formData.role,
-        hotelId: selectedHotelId,
+        hotelId: activeHotelId,
         ...(!isManager && { permissionName: formData.permissionName }),
       };
 
@@ -141,7 +137,7 @@ export const Staff = () => {
       }
 
       handleCloseModal();
-      loadStaff(selectedHotelId);
+      loadStaff(activeHotelId);
     } catch (error) {
       console.error('Failed to save staff:', error);
       toast.error(error || 'Failed to save staff member');
@@ -158,7 +154,7 @@ export const Staff = () => {
     try {
       await dispatch(deleteStaffMember(staffId)).unwrap();
       toast.success('Staff member deleted successfully');
-      loadStaff(selectedHotelId);
+      loadStaff(activeHotelId);
     } catch (error) {
       console.error('Failed to delete staff:', error);
       toast.error('Failed to delete staff member');
@@ -220,10 +216,6 @@ export const Staff = () => {
     },
   ];
 
-  if (loading && staff.length === 0) {
-    return <StaffSkeleton />;
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -234,32 +226,54 @@ export const Staff = () => {
         </div>
         <button
           onClick={() => handleOpenModal()}
-          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-medium hover:shadow-lg transition-all flex items-center gap-2"
+          disabled={!activeHotelId}
+          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-medium hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="w-5 h-5" />
           Add Staff Member
         </button>
       </div>
 
-      {/* Stats Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200 p-6"
-      >
-        <div className="flex items-center gap-4">
-          <div className="p-4 bg-blue-600 rounded-xl">
-            <Users className="w-8 h-8 text-white" />
-          </div>
-          <div>
-            <p className="text-sm text-slate-600 font-medium">Total Staff Members</p>
-            <p className="text-3xl font-bold text-slate-900">{staff.length}</p>
-          </div>
+      {!activeHotelId && (
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+          <Building className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-slate-900 mb-2">Select a hotel</h3>
+          <p className="text-slate-600">Choose a hotel from the header to manage staff.</p>
         </div>
-      </motion.div>
+      )}
 
-      {/* Table */}
-      <DataTable columns={columns} data={staff} />
+      {/* Staff table — animated per hotel switch */}
+      {activeHotelId && (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeHotelId}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.16, ease: 'easeInOut' }}
+          className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
+        >
+          {loading && staff.length === 0 ? (
+            <div className="p-6"><StaffSkeleton /></div>
+          ) : staff.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Users className="w-7 h-7 text-slate-400" />
+              </div>
+              <p className="text-slate-500 text-sm font-medium mb-4">No staff members for this hotel yet.</p>
+              <button
+                onClick={() => handleOpenModal()}
+                className="px-5 py-2 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-colors inline-flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" /> Add First Staff Member
+              </button>
+            </div>
+          ) : (
+            <DataTable columns={columns} data={staff} />
+          )}
+        </motion.div>
+      </AnimatePresence>
+      )}
 
       {/* Delete Confirm Modal */}
       <ConfirmModal
@@ -380,58 +394,28 @@ export const Staff = () => {
                 </div>
               )}
 
-              {/* Hotel Selector */}
+              {/* Hotel */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Hotel *
                 </label>
-                {ownerHotels.length > 1 ? (
-                  <div className="space-y-2">
-                    {ownerHotels.map((h) => {
-                      const hid = h.partneredHotelId || h.id;
-                      const selected = hid === selectedHotelId;
-                      return (
-                        <button key={hid} type="button" onClick={() => setSelectedHotelId(hid)}
-                          className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all ${
-                            selected
-                              ? 'border-blue-500 bg-blue-50'
-                              : 'border-slate-200 bg-white hover:border-slate-300'
-                          }`}>
-                          <div className="flex items-center gap-2">
-                            <Building className={`w-4 h-4 shrink-0 ${selected ? 'text-blue-600' : 'text-slate-400'}`} />
-                            <div>
-                              <p className={`text-sm font-semibold ${selected ? 'text-blue-700' : 'text-slate-900'}`}>
-                                {h.name || h.hotelName}
-                              </p>
-                              {(h.location || h.address) && (
-                                <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                                  <MapPin className="w-3 h-3" />
-                                  {h.location || h.address}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  /* Single hotel — show name + location as read-only */
-                  <div className="flex items-start gap-3 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
-                    <Building className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">
-                        {ownerHotels[0]?.name || ownerHotels[0]?.hotelName || 'Your Hotel'}
+                <div className="flex items-start gap-3 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <Building className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {activeHotel?.name || activeHotel?.hotelName || 'Selected Hotel'}
+                    </p>
+                    {(activeHotel?.location || activeHotel?.address) && (
+                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3" />
+                        {activeHotel?.location || activeHotel?.address}
                       </p>
-                      {(ownerHotels[0]?.location || ownerHotels[0]?.address) && (
-                        <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                          <MapPin className="w-3 h-3" />
-                          {ownerHotels[0]?.location || ownerHotels[0]?.address}
-                        </p>
-                      )}
-                    </div>
+                    )}
+                    <p className="text-xs text-slate-500 mt-1">
+                      Switch hotels from the header.
+                    </p>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Actions */}

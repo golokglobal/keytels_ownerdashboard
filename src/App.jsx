@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { MainLayout } from './components/Layout/MainLayout';
 import { PrivateRoute } from './components/Layout/PrivateRoute';
+import { BillingGate } from './components/Layout/BillingGate';
 import { Loader } from './components/common/Loader';
 import { restoreUser } from './store/slices/userSlice';
 
@@ -25,6 +26,7 @@ const HotelList      = lazy(() => import('./pages/HotelList').then(m => ({ defau
 const Permissions    = lazy(() => import('./pages/Permissions').then(m => ({ default: m.Permissions })));
 const Staff          = lazy(() => import('./pages/Staff').then(m => ({ default: m.Staff })));
 const Profile        = lazy(() => import('./pages/Profile'));
+const CheckinsOuts   = lazy(() => import('./pages/CheckinsOuts').then(m => ({ default: m.CheckinsOuts })));
 
 /* Listens for auth:logout events fired by the axios interceptor */
 function AuthLogoutListener() {
@@ -59,7 +61,9 @@ function App() {
             path="/"
             element={
               <PrivateRoute>
-                <MainLayout />
+                <BillingGate>
+                  <MainLayout />
+                </BillingGate>
               </PrivateRoute>
             }
           >
@@ -78,6 +82,7 @@ function App() {
             <Route path="hotels/edit/:hotelId" element={<AddHotel />} />
             <Route path="permissions" element={<Permissions />} />
             <Route path="staff" element={<Staff />} />
+            <Route path="checkins-outs" element={<CheckinsOuts />} />
             <Route path="profile" element={<Profile />} />
           </Route>
 

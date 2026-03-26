@@ -10,9 +10,10 @@ import {
   selectReviews,
   selectReviewSummary,
   selectReviewsLoading,
+  clearReviews,
 } from '../store/slices/reviewSlice';
 import { ReviewsSkeleton } from '../components/common/Skeleton';
-import { fetchOwnerHotels } from '../store/slices/PartnerHotelslice';
+import { selectPrimaryHotelId } from '../store/slices/userSlice';
 
 export const Reviews = () => {
   const dispatch = useDispatch();
@@ -20,39 +21,14 @@ export const Reviews = () => {
   const summary = useSelector(selectReviewSummary);
   const loading = useSelector(selectReviewsLoading);
 
-  const primaryHotelId = useSelector((state) => state.user.hotelId);
-  const { hotels: ownerHotels } = useSelector((state) => state.partneredhotels);
-  const [activeHotelId, setActiveHotelId] = useState(null);
+  const activeHotelId = useSelector(selectPrimaryHotelId);
   const [activeFilter, setActiveFilter] = useState('ALL');
-
-  // Initialise activeHotelId from primary hotel
-  useEffect(() => {
-    if (!activeHotelId && primaryHotelId) {
-      setActiveHotelId(primaryHotelId);
-    }
-  }, [primaryHotelId]);
-
-  // Auto-select first loaded hotel if activeHotelId is still null
-  useEffect(() => {
-    if (!activeHotelId && ownerHotels.length > 0) {
-      const first = ownerHotels[0];
-      setActiveHotelId(first.partneredHotelId || first.id);
-    }
-  }, [ownerHotels]);
-
-  // Fetch owner hotels on mount if not already loaded
-  useEffect(() => {
-    if (ownerHotels.length === 0) {
-      dispatch(fetchOwnerHotels());
-    }
-  }, []);
 
   useEffect(() => {
     if (activeHotelId) {
+      dispatch(clearReviews());
       dispatch(fetchHotelReviews(activeHotelId));
       dispatch(fetchHotelReviewSummary(activeHotelId));
-    } else if (!primaryHotelId) {
-      toast.error('No hotel ID found. Please ensure you are logged in.');
     }
   }, [dispatch, activeHotelId]);
 
@@ -86,10 +62,6 @@ export const Reviews = () => {
     return review.overallRating === parseInt(activeFilter);
   });
 
-  if (loading && reviews.length === 0) {
-    return <ReviewsSkeleton />;
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -98,26 +70,18 @@ export const Reviews = () => {
         <p className="text-slate-600">Manage and respond to guest feedback</p>
       </div>
 
-      {/* Hotel Selector */}
-      {ownerHotels.length > 1 && (
-        <div className="flex gap-2 flex-wrap">
-          {ownerHotels.map((h) => {
-            const hid = h.partneredHotelId || h.id;
-            return (
-              <button key={hid} onClick={() => setActiveHotelId(hid)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                  activeHotelId === hid
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'
-                }`}>
-                {h.name || h.hotelName}
-              </button>
-            );
-          })}
+      {!activeHotelId && (
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+          <MessageSquare className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-slate-900 mb-2">Select a hotel</h3>
+          <p className="text-slate-600">Choose a hotel from the header to view reviews.</p>
         </div>
       )}
 
+      {activeHotelId && loading && reviews.length === 0 && <ReviewsSkeleton />}
+
       {/* Rating Overview */}
+      {activeHotelId && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Average Rating Card */}
         <motion.div
@@ -184,53 +148,56 @@ export const Reviews = () => {
           </div>
         </motion.div>
       </div>
+      )}
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <div className="flex flex-wrap gap-2">
-          {['ALL', 'ACTIVE', 'HIDDEN', '5', '4', '3', '2', '1'].map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                activeFilter === filter
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {filter === 'ALL' ? 'All Reviews' : filter === 'ACTIVE' ? 'Visible' : filter === 'HIDDEN' ? 'Hidden' : `${filter} Stars`}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Reviews List */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-slate-900">
-            {filteredReviews.length} Reviews
-          </h2>
-        </div>
-
-        {filteredReviews.length === 0 ? (
-          <div className="bg-white rounded-xl border-2 border-dashed border-slate-300 p-12 text-center">
-            <MessageSquare className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-slate-900 mb-2">No reviews yet</h3>
-            <p className="text-slate-600">Reviews from guests will appear here</p>
+      {activeHotelId && (
+      <>
+        {/* Filters */}
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="flex flex-wrap gap-2">
+            {['ALL', 'ACTIVE', 'HIDDEN', '5', '4', '3', '2', '1'].map((filter) => (
+              <button
+                key={filter}
+                onClick={() => setActiveFilter(filter)}
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                  activeFilter === filter
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {filter === 'ALL' ? 'All Reviews' : filter === 'ACTIVE' ? 'Visible' : filter === 'HIDDEN' ? 'Hidden' : `${filter} Stars`}
+              </button>
+            ))}
           </div>
-        ) : (
-          filteredReviews.map((review, index) => (
-            <motion.div
-              key={review.reviewId}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className={`bg-white rounded-xl border-2 p-6 ${
-                review.status === 'HIDDEN'
-                  ? 'border-red-200 bg-red-50'
-                  : 'border-slate-200'
-              }`}
-            >
+        </div>
+
+        {/* Reviews List */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-slate-900">
+              {filteredReviews.length} Reviews
+            </h2>
+          </div>
+
+          {filteredReviews.length === 0 ? (
+            <div className="bg-white rounded-xl border-2 border-dashed border-slate-300 p-12 text-center">
+              <MessageSquare className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-slate-900 mb-2">No reviews yet</h3>
+              <p className="text-slate-600">Reviews from guests will appear here</p>
+            </div>
+          ) : (
+            filteredReviews.map((review, index) => (
+              <motion.div
+                key={review.reviewId}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className={`bg-white rounded-xl border-2 p-6 ${
+                  review.status === 'HIDDEN'
+                    ? 'border-red-200 bg-red-50'
+                    : 'border-slate-200'
+                }`}
+              >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
@@ -316,6 +283,8 @@ export const Reviews = () => {
           ))
         )}
       </div>
+      </>
+      )}
     </div>
   );
 };

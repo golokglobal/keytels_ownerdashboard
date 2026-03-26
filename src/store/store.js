@@ -12,6 +12,7 @@ import permissionsReducer from './slices/PermissionsSlice';
 import userReducer from './slices/userSlice';
 import reviewReducer from './slices/reviewSlice';
 import staffReducer from './slices/staffSlice';
+import paymentsReducer from './slices/paymentsSlice';
 
 
 export const store = configureStore({
@@ -29,6 +30,6 @@ export const store = configureStore({
     user: userReducer,
     reviews: reviewReducer,
     staff: staffReducer,
-
+    payments: paymentsReducer,
   },
 });

@@ -12,15 +12,26 @@ import {
 } from 'lucide-react';
 import { GuestsSkeleton } from '../components/common/Skeleton';
 import { loadGuests } from '../store/slices/guestSlice';
+import {
+  fetchBookingById,
+  fetchBookingPaymentDetails,
+  setSelectedBooking,
+  clearPaymentDetails,
+  selectSelectedBooking,
+  selectPaymentDetails,
+} from '../store/slices/bookingSlice';
 
 export const Guests = () => {
   const dispatch = useDispatch();
   const { guests, loading, error } = useSelector((state) => state.guests);
   const hotelId = useSelector((state) => state.user.hotelId);
+  const selectedBooking = useSelector(selectSelectedBooking);
+  const paymentDetails = useSelector(selectPaymentDetails);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedGuest, setSelectedGuest] = useState(null);
+  const [showBookingModal, setShowBookingModal] = useState(false);
 
   useEffect(() => {
     if (hotelId) {
@@ -100,6 +111,19 @@ export const Guests = () => {
       { label: 'Checked Out', value: checkedOut, color: 'text-slate-500' },
     ];
   }, [guestsWithStatus]);
+
+  const openBookingDetails = (booking) => {
+    if (!booking?.bookingId) return;
+    dispatch(setSelectedBooking(booking));
+    dispatch(fetchBookingById(booking.bookingId));
+    dispatch(fetchBookingPaymentDetails(booking.bookingId));
+    setShowBookingModal(true);
+  };
+
+  const closeBookingDetails = () => {
+    setShowBookingModal(false);
+    dispatch(clearPaymentDetails());
+  };
 
   if (loading) {
     return <GuestsSkeleton />;
@@ -337,7 +361,8 @@ export const Guests = () => {
                       .map((booking) => (
                         <div
                           key={booking.bookingId}
-                          className="bg-slate-50 rounded-lg p-4 border border-slate-100"
+                          onClick={() => openBookingDetails(booking)}
+                          className="bg-slate-50 rounded-lg p-4 border border-slate-100 hover:border-slate-200 hover:bg-white transition-all cursor-pointer"
                         >
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs text-slate-500 font-mono">
@@ -382,6 +407,99 @@ export const Guests = () => {
                       </p>
                     )}
                   </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Booking Detail Modal */}
+      <AnimatePresence>
+        {showBookingModal && selectedBooking && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={closeBookingDetails}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] overflow-hidden shadow-2xl"
+            >
+              <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Booking Details</h2>
+                  <p className="text-xs text-slate-500 font-mono">
+                    {selectedBooking.bookingId}
+                  </p>
+                </div>
+                <button
+                  onClick={closeBookingDetails}
+                  className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-5 h-5 text-slate-500" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(85vh-88px)]">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Status</p>
+                    <p className="font-semibold text-slate-900">{selectedBooking.bookingStatus}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Payment</p>
+                    <p className="font-semibold text-slate-900">{selectedBooking.paymentStatus}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Check-in</p>
+                    <p className="font-semibold text-slate-900">{selectedBooking.checkInDate}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Check-out</p>
+                    <p className="font-semibold text-slate-900">{selectedBooking.checkOutDate}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Room</p>
+                    <p className="font-semibold text-slate-900">{selectedBooking.roomId}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Refund</p>
+                    <p className="font-semibold text-slate-900">{selectedBooking.refundStatus || 'NA'}</p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 rounded-xl border border-slate-100 p-4">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-3">Payment Details</h3>
+                  {!paymentDetails ? (
+                    <p className="text-sm text-slate-500">Loading payment details…</p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Total Amount</p>
+                        <p className="font-semibold text-slate-900">
+                          ${paymentDetails.totalAmount?.toLocaleString() || '0'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Refund Amount</p>
+                        <p className="font-semibold text-slate-900">
+                          ${paymentDetails.refundAmount?.toLocaleString() || '0'}
+                        </p>
+                      </div>
+                      {paymentDetails.refundPolicy && (
+                        <div className="col-span-2">
+                          <p className="text-xs text-slate-500 mb-1">Refund Policy</p>
+                          <p className="text-sm text-slate-700">{paymentDetails.refundPolicy}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>

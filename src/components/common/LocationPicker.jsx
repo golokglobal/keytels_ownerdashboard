@@ -1,11 +1,45 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MapPin, Search, Loader2, X, Navigation } from "lucide-react";
+import { MapPin, Search, Loader2, X, Navigation, Hotel, UtensilsCrossed, Coffee, Plane, ShoppingBag, Landmark, Building2, TreePine } from "lucide-react";
 
 /* ─── Leaflet lazy-loaded to avoid SSR issues ─── */
 let L = null;
 let mapInstance = null;
 
 const NOMINATIM = "https://nominatim.openstreetmap.org";
+
+/* ─── Category icon + label helpers ─── */
+const PLACE_CATEGORIES = {
+  // Tourism / accommodation
+  hotel:          { Icon: Hotel,          label: "Hotel",       color: "text-blue-500",   bg: "bg-blue-50"   },
+  motel:          { Icon: Hotel,          label: "Motel",       color: "text-blue-500",   bg: "bg-blue-50"   },
+  hostel:         { Icon: Hotel,          label: "Hostel",      color: "text-blue-500",   bg: "bg-blue-50"   },
+  guest_house:    { Icon: Hotel,          label: "Guest House", color: "text-blue-500",   bg: "bg-blue-50"   },
+  resort:         { Icon: Hotel,          label: "Resort",      color: "text-blue-500",   bg: "bg-blue-50"   },
+  // Food
+  restaurant:     { Icon: UtensilsCrossed, label: "Restaurant", color: "text-orange-500", bg: "bg-orange-50" },
+  fast_food:      { Icon: UtensilsCrossed, label: "Fast Food",  color: "text-orange-500", bg: "bg-orange-50" },
+  food_court:     { Icon: UtensilsCrossed, label: "Food Court", color: "text-orange-500", bg: "bg-orange-50" },
+  cafe:           { Icon: Coffee,          label: "Café",        color: "text-amber-600",  bg: "bg-amber-50"  },
+  bar:            { Icon: Coffee,          label: "Bar",         color: "text-amber-600",  bg: "bg-amber-50"  },
+  // Transport
+  aerodrome:      { Icon: Plane,          label: "Airport",     color: "text-sky-500",    bg: "bg-sky-50"    },
+  airport:        { Icon: Plane,          label: "Airport",     color: "text-sky-500",    bg: "bg-sky-50"    },
+  // Shopping
+  mall:           { Icon: ShoppingBag,    label: "Mall",        color: "text-pink-500",   bg: "bg-pink-50"   },
+  supermarket:    { Icon: ShoppingBag,    label: "Supermarket", color: "text-pink-500",   bg: "bg-pink-50"   },
+  // Landmarks / civic
+  attraction:     { Icon: Landmark,       label: "Attraction",  color: "text-purple-500", bg: "bg-purple-50" },
+  museum:         { Icon: Landmark,       label: "Museum",      color: "text-purple-500", bg: "bg-purple-50" },
+  theatre:        { Icon: Landmark,       label: "Theatre",     color: "text-purple-500", bg: "bg-purple-50" },
+  // Nature
+  park:           { Icon: TreePine,       label: "Park",        color: "text-green-600",  bg: "bg-green-50"  },
+  nature_reserve: { Icon: TreePine,       label: "Reserve",     color: "text-green-600",  bg: "bg-green-50"  },
+};
+
+const getCategory = (item) => {
+  const key = item.type || item.class;
+  return PLACE_CATEGORIES[key] || { Icon: Building2, label: item.type || item.class || "Place", color: "text-slate-500", bg: "bg-slate-50" };
+};
 
 /**
  * LocationPicker — OpenStreetMap / Leaflet (no API key required)
@@ -149,18 +183,35 @@ export const LocationPicker = ({ value = {}, onChange }) => {
     searchTimeout.current = setTimeout(async () => {
       setSearching(true);
       try {
+        const params = new URLSearchParams({
+          q,
+          format: "json",
+          limit: "10",
+          addressdetails: "1",
+          extratags: "1",
+          namedetails: "1",
+          // all categories — hotels, restaurants, airports, parks, landmarks, etc.
+          featuretype: "settlement",
+        });
         const res = await fetch(
-          `${NOMINATIM}/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`,
-          { headers: { "Accept-Language": "en" } }
+          `${NOMINATIM}/search?${params}`,
+          { headers: { "Accept-Language": "en", "User-Agent": "KeytelsOwnerDashboard/1.0" } }
         );
         const data = await res.json();
-        setSuggestions(data);
+        // De-dupe by display_name and keep max 8
+        const seen = new Set();
+        const deduped = data.filter((item) => {
+          if (seen.has(item.display_name)) return false;
+          seen.add(item.display_name);
+          return true;
+        }).slice(0, 8);
+        setSuggestions(deduped);
       } catch {
         setSuggestions([]);
       } finally {
         setSearching(false);
       }
-    }, 400);
+    }, 350);
   };
 
   const selectSuggestion = (item) => {
@@ -203,14 +254,14 @@ export const LocationPicker = ({ value = {}, onChange }) => {
   return (
     <div className="space-y-3">
 
-      {/* Search */}
-      <div className="relative">
+      {/* Search — isolate creates its own stacking context so dropdown floats above the map */}
+      <div className="relative isolate" style={{ zIndex: 1001 }}>
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search for a city or address…"
+              placeholder="Search hotels, restaurants, cities, airports…"
               value={searchQuery}
               onChange={handleSearchChange}
               autoComplete="off"
@@ -239,22 +290,46 @@ export const LocationPicker = ({ value = {}, onChange }) => {
           </button>
         </div>
 
-        {/* Suggestions dropdown */}
+        {/* Suggestions dropdown — z-[1001] to sit above Leaflet controls (z-index 800) */}
         {suggestions.length > 0 && (
-          <div className="absolute top-full left-0 right-0 z-50 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
-            {suggestions.map((item, idx) => (
-              <button
-                key={item.place_id || idx}
-                type="button"
-                onClick={() => selectSuggestion(item)}
-                className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0"
-              >
-                <MapPin className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
-                <span className="text-sm text-slate-700 line-clamp-2 leading-snug">
-                  {item.display_name}
-                </span>
-              </button>
-            ))}
+          <div className="absolute top-full left-0 right-0 z-[1001] mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-72 overflow-y-auto">
+            {suggestions.map((item, idx) => {
+              const { Icon, label, color, bg } = getCategory(item);
+              const primaryName =
+                item.namedetails?.name ||
+                item.address?.amenity ||
+                item.address?.hotel ||
+                item.address?.city ||
+                item.address?.town ||
+                item.address?.village ||
+                item.address?.county ||
+                item.display_name.split(",")[0];
+              const secondaryName = item.display_name;
+              return (
+                <button
+                  key={item.place_id || idx}
+                  type="button"
+                  onClick={() => selectSuggestion(item)}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 group"
+                >
+                  {/* Category icon */}
+                  <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
+                    <Icon className={`w-4 h-4 ${color}`} />
+                  </div>
+
+                  {/* Name + address */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{primaryName}</p>
+                    <p className="text-xs text-slate-400 truncate mt-0.5">{secondaryName}</p>
+                  </div>
+
+                  {/* Category badge */}
+                  <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${bg} ${color} capitalize hidden sm:block`}>
+                    {label}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

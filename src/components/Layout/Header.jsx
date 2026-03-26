@@ -2,13 +2,17 @@ import { useState, useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { Menu, Bell, Search, User, LogOut, Settings, BookOpen, Users, Bed, X } from 'lucide-react';
-import { logoutUser } from '../../store/slices/userSlice';
-import { clearAllHotels } from '../../store/slices/PartnerHotelslice';
+import { logoutUser, selectPrimaryHotelId, setActiveHotelId } from '../../store/slices/userSlice';
+import { clearAllHotels, fetchOwnerHotels } from '../../store/slices/PartnerHotelslice';
+import { HotelDropdown } from '../shared/HotelDropdown';
 
 export const Header = ({ onMenuClick }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.user);
+  const userRole = useSelector((state) => state.user.userRole || state.user.user?.role);
+  const { hotels: ownerHotels, loading: hotelsLoading } = useSelector((state) => state.partneredhotels);
+  const activeHotelId = useSelector(selectPrimaryHotelId);
   const bookings = useSelector((state) => state.bookings.bookings);
   const guests = useSelector((state) => state.guests.guests);
   const rooms = useSelector((state) => state.property.rooms);
@@ -26,6 +30,19 @@ export const Header = ({ onMenuClick }) => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  useEffect(() => {
+    if (userRole === 'HOTEL_OWNER' && ownerHotels.length === 0 && !hotelsLoading) {
+      dispatch(fetchOwnerHotels());
+    }
+  }, [dispatch, userRole, ownerHotels.length, hotelsLoading]);
+
+  useEffect(() => {
+    if (!activeHotelId && ownerHotels.length > 0) {
+      const first = ownerHotels[0];
+      dispatch(setActiveHotelId(first.partneredHotelId || first.id));
+    }
+  }, [dispatch, activeHotelId, ownerHotels]);
 
   const q = query.trim().toLowerCase();
 
@@ -201,6 +218,17 @@ export const Header = ({ onMenuClick }) => {
 
         {/* Right Section */}
         <div className="flex items-center gap-4">
+          {ownerHotels.length > 0 && (
+            <div className="hidden md:block">
+              <HotelDropdown
+                hotels={ownerHotels}
+                activeId={activeHotelId}
+                onChange={(hid) => dispatch(setActiveHotelId(hid))}
+                variant="header"
+                className="w-72"
+              />
+            </div>
+          )}
           {/* Notifications */}
           <button className="relative p-2 hover:bg-slate-100 rounded-lg transition-colors">
             <Bell className="w-6 h-6 text-slate-600" />
@@ -268,6 +296,16 @@ export const Header = ({ onMenuClick }) => {
           </div>
         </div>
       </div>
+      {ownerHotels.length > 0 && (
+        <div className="md:hidden px-4 pb-4">
+          <HotelDropdown
+            hotels={ownerHotels}
+            activeId={activeHotelId}
+            onChange={(hid) => dispatch(setActiveHotelId(hid))}
+            variant="header"
+          />
+        </div>
+      )}
     </header>
   );
 };

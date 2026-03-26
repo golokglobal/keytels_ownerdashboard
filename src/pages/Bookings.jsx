@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
@@ -22,12 +22,13 @@ import {
   fetchBookingSummary,
   setSelectedBooking,
   clearPaymentDetails,
+  fetchBookingById,
   checkIn,
   checkOut,
   cancelBooking,
   fetchBookingPaymentDetails,
 } from '../store/slices/bookingSlice';
-import { fetchOwnerHotels } from '../store/slices/PartnerHotelslice';
+import { selectPrimaryHotelId } from '../store/slices/userSlice';
 
 const BOOKING_STATUS_COLORS = {
   BOOKED: 'bg-green-100 text-green-700',
@@ -55,31 +56,7 @@ export const Bookings = () => {
     checkOutLoading,
     cancelLoading,
   } = useSelector((state) => state.bookings);
-  const primaryHotelId = useSelector((state) => state.user.hotelId);
-  const { hotels: ownerHotels } = useSelector((state) => state.partneredhotels);
-  const [activeHotelId, setActiveHotelId] = useState(null);
-
-  // Initialise activeHotelId from primary hotel
-  useEffect(() => {
-    if (!activeHotelId && primaryHotelId) {
-      setActiveHotelId(primaryHotelId);
-    }
-  }, [primaryHotelId]);
-
-  // Auto-select first loaded hotel if activeHotelId is still null
-  useEffect(() => {
-    if (!activeHotelId && ownerHotels.length > 0) {
-      const first = ownerHotels[0];
-      setActiveHotelId(first.partneredHotelId || first.id);
-    }
-  }, [ownerHotels]);
-
-  // Fetch owner hotels on mount if not already loaded
-  useEffect(() => {
-    if (ownerHotels.length === 0) {
-      dispatch(fetchOwnerHotels());
-    }
-  }, []);
+  const activeHotelId = useSelector(selectPrimaryHotelId);
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState('all');
@@ -182,19 +159,18 @@ export const Bookings = () => {
     const booking = bookings.find((b) => b.bookingId === bookingId);
     dispatch(setSelectedBooking(booking || null));
     setShowDetailsModal(true);
+    dispatch(fetchBookingById(bookingId));
     dispatch(fetchBookingPaymentDetails(bookingId));
   }, [bookings, dispatch]);
 
-  // Get status counts
-  const statusCounts = useMemo(() => {
-    return {
-      all: bookings.length,
-      BOOKED: summary?.booked || bookings.filter(b => b.bookingStatus === 'BOOKED').length,
-      CHECKED_IN: summary?.checkedIn || bookings.filter(b => b.bookingStatus === 'CHECKED_IN').length,
-      CHECKED_OUT: summary?.checkedOut || bookings.filter(b => b.bookingStatus === 'CHECKED_OUT').length,
-      CANCELLED: summary?.cancelled || bookings.filter(b => b.bookingStatus === 'CANCELLED').length,
-    };
-  }, [bookings, summary]);
+  // Get status counts from API summary
+  const statusCounts = useMemo(() => ({
+    all: summary?.totalBookings ?? bookings.length,
+    BOOKED: summary?.booked ?? 0,
+    CHECKED_IN: summary?.checkedIn ?? 0,
+    CHECKED_OUT: summary?.checkedOut ?? 0,
+    CANCELLED: summary?.cancelled ?? 0,
+  }), [summary, bookings.length]);
 
   const columns = useMemo(() => [
     {
@@ -328,7 +304,7 @@ export const Bookings = () => {
         <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
           <Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-slate-900 mb-2">Select a hotel</h3>
-          <p className="text-slate-600">Please select a hotel to view its bookings</p>
+          <p className="text-slate-600">Please select a hotel from the header to view its bookings</p>
         </div>
       </div>
     );
@@ -351,25 +327,6 @@ export const Bookings = () => {
           Refresh
         </button>
       </div>
-
-      {/* Hotel Selector */}
-      {ownerHotels.length > 1 && (
-        <div className="flex gap-2 flex-wrap">
-          {ownerHotels.map((h) => {
-            const hid = h.partneredHotelId || h.id;
-            return (
-              <button key={hid} onClick={() => setActiveHotelId(hid)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                  activeHotelId === hid
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'
-                }`}>
-                {h.name || h.hotelName}
-              </button>
-            );
-          })}
-        </div>
-      )}
 
       {/* Status Filter Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">

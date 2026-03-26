@@ -194,6 +194,10 @@ const userSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
+    setActiveHotelId: (state, action) => {
+      state.hotelId = action.payload || null;
+      localStorage.setItem("hotelId", state.hotelId || "");
+    },
     restoreUser: (state) => {
       const userStr = localStorage.getItem("user");
       const accessToken = localStorage.getItem("accessToken");
@@ -226,7 +230,8 @@ const userSlice = createSlice({
           }
 
           state.hotelIds = hotelIds;
-          state.hotelId = hotelIds[0] || null;
+          const storedActive = localStorage.getItem("hotelId");
+          state.hotelId = (storedActive && hotelIds.includes(storedActive)) ? storedActive : (hotelIds[0] || null);
 
           state.accessToken = accessToken;
           state.refreshToken = localStorage.getItem("refreshToken") || null;
@@ -256,8 +261,8 @@ const userSlice = createSlice({
         state.accessToken = token;
         state.userId = user?.id || user?._id || null;
         state.userRole = user?.role || null;
-        state.hotelId = user?.hotelId || null;
         state.hotelIds = user?.hotels?.map(h => h._id || h.partneredHotelId || h.id).filter(Boolean) || [];
+        state.hotelId = state.hotelIds[0] || user?.hotelId || null;
         state.isAuthenticated = true;
 
         localStorage.setItem("user", JSON.stringify(user));
@@ -267,6 +272,9 @@ const userSlice = createSlice({
         if (state.hotelIds.length > 0) {
           localStorage.setItem("hotelIds", JSON.stringify(state.hotelIds));
           localStorage.setItem("hotelId", state.hotelIds[0]);
+        } else if (state.hotelId) {
+          localStorage.setItem("hotelIds", JSON.stringify([state.hotelId]));
+          localStorage.setItem("hotelId", state.hotelId);
         }
       })
       .addCase(signupUser.rejected, (state, action) => {
@@ -287,10 +295,10 @@ const userSlice = createSlice({
         state.refreshToken = refreshToken;
         state.userId = user?.id || user?._id || null;
         state.userRole = user?.role || null;
-        state.hotelId = user?.hotelId || null;
 
         // Prefer array from backend if available
         state.hotelIds = user?.hotels?.map(h => h._id || h.partneredHotelId || h.id).filter(Boolean) || [];
+        state.hotelId = state.hotelIds[0] || user?.hotelId || null;
 
         state.isAuthenticated = true;
         state.error = null;
@@ -306,6 +314,7 @@ const userSlice = createSlice({
           localStorage.setItem("hotelId", state.hotelIds[0]);
         } else if (state.hotelId) {
           // Staff/Manager: hotelId comes directly from user.hotelId, no hotels array
+          state.hotelIds = [state.hotelId];
           localStorage.setItem("hotelIds", JSON.stringify([state.hotelId]));
           localStorage.setItem("hotelId", state.hotelId);
         }
@@ -328,8 +337,8 @@ const userSlice = createSlice({
         state.refreshToken = refreshToken;
         state.userId = user?.id || user?._id || null;
         state.userRole = user?.role || null;
-        state.hotelId = user?.hotelId || null;
         state.hotelIds = user?.hotels?.map(h => h._id || h.partneredHotelId || h.id).filter(Boolean) || [];
+        state.hotelId = state.hotelIds[0] || user?.hotelId || null;
         state.isAuthenticated = true;
         state.error = null;
 
@@ -343,6 +352,7 @@ const userSlice = createSlice({
           localStorage.setItem("hotelIds", JSON.stringify(state.hotelIds));
           localStorage.setItem("hotelId", state.hotelIds[0]);
         } else if (state.hotelId) {
+          state.hotelIds = [state.hotelId];
           localStorage.setItem("hotelIds", JSON.stringify([state.hotelId]));
           localStorage.setItem("hotelId", state.hotelId);
         }
@@ -386,7 +396,7 @@ const userSlice = createSlice({
   },
 });
 
-export const { clearError, restoreUser } = userSlice.actions;
+export const { clearError, restoreUser, setActiveHotelId } = userSlice.actions;
 export default userSlice.reducer;
 
 // Selectors
