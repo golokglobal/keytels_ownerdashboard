@@ -22,7 +22,9 @@ import {
   fetchBookingSummary,
   fetchTodayCheckIns,
   fetchTodayCheckOuts,
+  fetchHotelRevenue,
   selectPaymentsTotal,
+  selectRevenue,
   clearBookings,
 } from '../store/slices/bookingSlice';
 import { fetchDashboardReviews, fetchHotelReviewSummary, clearReviews } from '../store/slices/reviewSlice';
@@ -104,8 +106,14 @@ export const Dashboard = () => {
   const { bookings, todayCheckIns, todayCheckOuts, summary: bookingSummary } = useSelector((state) => state.bookings);
   const { dashboardReviews, summary: reviewSummary } = useSelector((state) => state.reviews);
   const paymentsTotal = useSelector(selectPaymentsTotal);
+  const revenue = useSelector(selectRevenue);
   const activeHotelId = useSelector(selectPrimaryHotelId);
   const [loading, setLoading] = useState(true);
+
+  // Current month date range for revenue
+  const now = new Date();
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const today = now.toISOString().split('T')[0];
 
   const loadData = async (hid) => {
     setLoading(true);
@@ -117,6 +125,7 @@ export const Dashboard = () => {
         dispatch(fetchTodayCheckOuts(hid)),
         dispatch(fetchDashboardReviews(hid)),
         dispatch(fetchHotelReviewSummary(hid)),
+        dispatch(fetchHotelRevenue({ hotelId: hid, fromDate: monthStart, toDate: today })),
       ]);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
@@ -170,11 +179,36 @@ export const Dashboard = () => {
         </button>
       </div>
 
+      {/* Today's quick-action bar */}
+      {(todayCheckIns?.length > 0 || todayCheckOuts?.length > 0 || bookingSummary?.booked > 0) && (
+        <div className="flex flex-wrap gap-3 p-4 bg-[#1a1f36] rounded-xl text-white text-sm">
+          <span className="font-semibold text-white/70 mr-1">Today:</span>
+          {todayCheckIns?.length > 0 && (
+            <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full">
+              <LogIn className="w-3.5 h-3.5 text-blue-300" />
+              <span>{todayCheckIns.length} arrival{todayCheckIns.length !== 1 ? 's' : ''}</span>
+            </span>
+          )}
+          {todayCheckOuts?.length > 0 && (
+            <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full">
+              <LogOut className="w-3.5 h-3.5 text-green-300" />
+              <span>{todayCheckOuts.length} departure{todayCheckOuts.length !== 1 ? 's' : ''}</span>
+            </span>
+          )}
+          {bookingSummary?.booked > 0 && (
+            <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full">
+              <AlertCircle className="w-3.5 h-3.5 text-yellow-300" />
+              <span>{bookingSummary.booked} pending check-in{bookingSummary.booked !== 1 ? 's' : ''}</span>
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Stats Grid - Using Real Booking Summary Data */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          title="Total Revenue"
-          value={`$${(paymentsTotal ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          title="Revenue This Month"
+          value={`$${(revenue?.totalRevenue ?? revenue?.revenue ?? revenue?.amount ?? paymentsTotal ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           icon={DollarSign}
           color="blue"
         />

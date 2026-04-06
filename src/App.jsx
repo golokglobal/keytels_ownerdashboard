@@ -23,7 +23,6 @@ const Support        = lazy(() => import('./pages/Support').then(m => ({ default
 const Settings       = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const AddHotel       = lazy(() => import('./pages/AddHotel').then(m => ({ default: m.AddHotel })));
 const HotelList      = lazy(() => import('./pages/HotelList').then(m => ({ default: m.HotelList })));
-const Permissions    = lazy(() => import('./pages/Permissions').then(m => ({ default: m.Permissions })));
 const Staff          = lazy(() => import('./pages/Staff').then(m => ({ default: m.Staff })));
 const Profile        = lazy(() => import('./pages/Profile'));
 const CheckinsOuts   = lazy(() => import('./pages/CheckinsOuts').then(m => ({ default: m.CheckinsOuts })));
@@ -80,7 +79,6 @@ function App() {
             <Route path="add-hotel" element={<AddHotel />} />
             <Route path="add-hotel/:hotelId" element={<AddHotel />} />
             <Route path="hotels/edit/:hotelId" element={<AddHotel />} />
-            <Route path="permissions" element={<Permissions />} />
             <Route path="staff" element={<Staff />} />
             <Route path="checkins-outs" element={<CheckinsOuts />} />
             <Route path="profile" element={<Profile />} />

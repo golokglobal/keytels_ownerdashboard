@@ -9,6 +9,7 @@ import {
   updateHotelRoom,
   deleteHotelRoom,
 } from "../store/slices/PartnerHotelslice";
+import { fetchRoomTypes, fetchBedTypes, selectRoomTypes, selectBedTypes } from "../store/slices/catalogSlice";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { LocationPicker } from "../components/common/LocationPicker";
@@ -50,7 +51,7 @@ const Section = ({ icon: Icon, title, children }) => (
 const AMENITY_PRESETS = ["wifi", "parking", "gym", "restaurant", "spa", "pool", "bar", "concierge"];
 
 /* ── Room form fields — MUST be outside AddHotel to avoid remount on every render ── */
-const RoomFormFields = ({ data, onChange, validationError }) => (
+const RoomFormFields = ({ data, onChange, validationError, roomTypes = [], bedTypes = [] }) => (
   <div className="space-y-3">
     {validationError && (
       <p className="text-xs text-red-500 font-medium bg-red-50 px-3 py-2 rounded-lg">{validationError}</p>
@@ -58,21 +59,47 @@ const RoomFormFields = ({ data, onChange, validationError }) => (
     <div className="grid grid-cols-2 gap-3">
       <div className="space-y-1">
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Room Type *</label>
-        <input
-          placeholder="e.g. Deluxe Suite"
-          value={data.roomType}
-          onChange={(e) => onChange({ ...data, roomType: e.target.value })}
-          className={inputCls}
-        />
+        {roomTypes.length > 0 ? (
+          <select
+            value={data.roomType}
+            onChange={(e) => onChange({ ...data, roomType: e.target.value })}
+            className={inputCls}
+          >
+            <option value="">Select room type</option>
+            {roomTypes.map((rt) => (
+              <option key={rt.id} value={rt.name}>{rt.name}</option>
+            ))}
+          </select>
+        ) : (
+          <input
+            placeholder="e.g. Deluxe Suite"
+            value={data.roomType}
+            onChange={(e) => onChange({ ...data, roomType: e.target.value })}
+            className={inputCls}
+          />
+        )}
       </div>
       <div className="space-y-1">
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Bed Type</label>
-        <input
-          placeholder="e.g. King"
-          value={data.bedType}
-          onChange={(e) => onChange({ ...data, bedType: e.target.value })}
-          className={inputCls}
-        />
+        {bedTypes.length > 0 ? (
+          <select
+            value={data.bedType}
+            onChange={(e) => onChange({ ...data, bedType: e.target.value })}
+            className={inputCls}
+          >
+            <option value="">Select bed type</option>
+            {bedTypes.map((bt) => (
+              <option key={bt.id} value={bt.name}>{bt.name}</option>
+            ))}
+          </select>
+        ) : (
+          <input
+            placeholder="e.g. King"
+            value={data.bedType}
+            onChange={(e) => onChange({ ...data, bedType: e.target.value })}
+            className={inputCls}
+          />
+        )}
       </div>
     </div>
     <div className="grid grid-cols-2 gap-3">
@@ -129,6 +156,8 @@ export const AddHotel = () => {
   const isUpdateMode = !!hotelId;
 
   const { loading, error, selectedHotel } = useSelector((state) => state.partneredhotels);
+  const roomTypes = useSelector(selectRoomTypes);
+  const bedTypes = useSelector(selectBedTypes);
   /* ─────────────────────── STATE ─────────────────────── */
   const [formData, setFormData] = useState({
     hotelName: "",
@@ -168,6 +197,8 @@ export const AddHotel = () => {
 
   /* ─────────────────────── FETCH FOR EDIT ─────────────────────── */
   useEffect(() => {
+    dispatch(fetchRoomTypes());
+    dispatch(fetchBedTypes());
     if (isUpdateMode) dispatch(fetchHotelById(hotelId));
     return () => dispatch(clearHotelError());
   }, [dispatch, hotelId, isUpdateMode]);
@@ -654,7 +685,7 @@ export const AddHotel = () => {
                 {/* Add more rooms in edit mode */}
                 <div className="border-t border-slate-100 pt-4 space-y-3">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Add New Room</p>
-                  <RoomFormFields data={roomData} onChange={setRoomData} validationError={roomValidationError} />
+                  <RoomFormFields data={roomData} onChange={setRoomData} validationError={roomValidationError} roomTypes={roomTypes} bedTypes={bedTypes} />
                   <button
                     type="button"
                     onClick={handleAddRoom}

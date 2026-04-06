@@ -34,3 +34,7 @@ export const updateStaff = (staffId, staffData) =>
 // Delete staff member
 export const deleteStaff = (staffId) =>
   api.delete(`/staff/${staffId}`).then(res => res.data);
+
+// Get staff filtered by role for a specific hotel
+export const getStaffByRoleAndHotel = (role, hotelId) =>
+  api.get(`/staff/role/${role}/hotel/${hotelId}`).then(res => res.data);

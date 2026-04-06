@@ -85,6 +85,19 @@ export const deleteStaffMember = createAsyncThunk(
   }
 );
 
+// Fetch staff filtered by role for a hotel
+export const fetchStaffByRole = createAsyncThunk(
+  'staff/fetchStaffByRole',
+  async ({ role, hotelId }, { rejectWithValue }) => {
+    try {
+      const response = await api.getStaffByRoleAndHotel(role, hotelId);
+      return Array.isArray(response) ? response : response.staff || [];
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch staff by role');
+    }
+  }
+);
+
 // Fetch single staff member by ID
 export const fetchStaffById = createAsyncThunk(
   'staff/fetchStaffById',
@@ -193,6 +206,20 @@ const staffSlice = createSlice({
         state.staff = state.staff.filter(s => s.id !== action.payload);
       })
       .addCase(deleteStaffMember.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // ────────────── FETCH STAFF BY ROLE ──────────────
+      .addCase(fetchStaffByRole.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchStaffByRole.fulfilled, (state, action) => {
+        state.loading = false;
+        state.staff = action.payload;
+      })
+      .addCase(fetchStaffByRole.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })

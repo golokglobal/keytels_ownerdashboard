@@ -13,6 +13,7 @@ import userReducer from './slices/userSlice';
 import reviewReducer from './slices/reviewSlice';
 import staffReducer from './slices/staffSlice';
 import paymentsReducer from './slices/paymentsSlice';
+import catalogReducer from './slices/catalogSlice';
 
 
 export const store = configureStore({
@@ -31,5 +32,6 @@ export const store = configureStore({
     reviews: reviewReducer,
     staff: staffReducer,
     payments: paymentsReducer,
+    catalog: catalogReducer,
   },
 });

@@ -11,6 +11,7 @@ import {
   fetchRoomImages,
   deleteRoomImage,
 } from "../store/slices/PartnerHotelslice";
+import { fetchRoomTypes, fetchBedTypes, selectRoomTypes, selectBedTypes } from "../store/slices/catalogSlice";
 import {
   BedDouble, Edit, Trash2, X, Building2, Users,
   CheckCircle, XCircle, Plus, Image as ImageIcon, Wrench,
@@ -90,6 +91,8 @@ const Field = ({ label, children }) => (
 const RoomPanel = ({ hotel }) => {
   const dispatch = useDispatch();
   const { roomImages, loading: sliceLoading } = useSelector((s) => s.partneredhotels);
+  const roomTypes = useSelector(selectRoomTypes);
+  const bedTypes = useSelector(selectBedTypes);
 
   const hotelId = hotel?.partneredHotelId || hotel?.id;
 
@@ -107,9 +110,14 @@ const RoomPanel = ({ hotel }) => {
   const [imageRoom, setImageRoom] = useState(null);
   const [confirmDelImg, setConfirmDelImg] = useState({ open: false, imageId: null });
 
-  const EMPTY = { roomType: "", description: "", capacity: "", pricePerNight: "", isAvailable: true, totalRooms: "1" };
+  const EMPTY = { roomType: "", bedType: "", description: "", capacity: "", pricePerNight: "", isAvailable: true, totalRooms: "1" };
   const [roomForm, setRoomForm] = useState(EMPTY);
   const [formError, setFormError] = useState("");
+
+  useEffect(() => {
+    dispatch(fetchRoomTypes());
+    dispatch(fetchBedTypes());
+  }, [dispatch]);
 
   const refresh = async () => {
     if (!hotelId) return;
@@ -143,6 +151,7 @@ const RoomPanel = ({ hotel }) => {
         hotelId,
         data: {
           roomType: roomForm.roomType,
+          bedType: roomForm.bedType || "",
           description: roomForm.description || "",
           capacity: Number(roomForm.capacity),
           pricePerNight: Number(roomForm.pricePerNight),
@@ -170,6 +179,7 @@ const RoomPanel = ({ hotel }) => {
         roomId: rid,
         data: {
           roomType: editRoom.roomType,
+          bedType: editRoom.bedType || "",
           description: editRoom.description || "",
           capacity: Number(editRoom.capacity),
           pricePerNight: Number(editRoom.pricePerNight || editRoom.basePrice),
@@ -307,6 +317,11 @@ const RoomPanel = ({ hotel }) => {
                   <div className="flex flex-col flex-1 p-5 gap-3">
                     <div>
                       <h3 className="font-bold text-slate-900 text-base capitalize">{room.roomType}</h3>
+                      {room.bedType && (
+                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700 border border-violet-100">
+                          <BedDouble className="w-3 h-3" /> {room.bedType}
+                        </span>
+                      )}
                       {room.description && (
                         <p className="text-sm text-slate-500 mt-1 line-clamp-2">{room.description}</p>
                       )}
@@ -367,8 +382,18 @@ const RoomPanel = ({ hotel }) => {
               )}
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Room Type *">
-                  <input value={roomForm.roomType} onChange={(e) => setRoomForm((p) => ({ ...p, roomType: e.target.value }))}
-                    placeholder="e.g. Deluxe Queen" className={inputCls} required />
+                  {roomTypes.length > 0 ? (
+                    <select value={roomForm.roomType} onChange={(e) => setRoomForm((p) => ({ ...p, roomType: e.target.value }))}
+                      className={inputCls} required>
+                      <option value="">Select room type</option>
+                      {roomTypes.map((rt) => (
+                        <option key={rt.id} value={rt.name}>{rt.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input value={roomForm.roomType} onChange={(e) => setRoomForm((p) => ({ ...p, roomType: e.target.value }))}
+                      placeholder="e.g. Deluxe Queen" className={inputCls} required />
+                  )}
                 </Field>
                 <Field label="Total Units">
                   <input type="number" min="1" value={roomForm.totalRooms}
@@ -388,6 +413,20 @@ const RoomPanel = ({ hotel }) => {
                     placeholder="e.g. 180.00" className={inputCls} required />
                 </Field>
               </div>
+              <Field label="Bed Type">
+                {bedTypes.length > 0 ? (
+                  <select value={roomForm.bedType} onChange={(e) => setRoomForm((p) => ({ ...p, bedType: e.target.value }))}
+                    className={inputCls}>
+                    <option value="">Select bed type</option>
+                    {bedTypes.map((bt) => (
+                      <option key={bt.id} value={bt.name}>{bt.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input value={roomForm.bedType} onChange={(e) => setRoomForm((p) => ({ ...p, bedType: e.target.value }))}
+                    placeholder="e.g. King, Twin" className={inputCls} />
+                )}
+              </Field>
               <Field label="Description">
                 <textarea value={roomForm.description}
                   onChange={(e) => setRoomForm((p) => ({ ...p, description: e.target.value }))}
@@ -421,8 +460,18 @@ const RoomPanel = ({ hotel }) => {
             <form onSubmit={handleUpdateRoom} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Room Type *">
-                  <input value={editRoom.roomType || ""} onChange={(e) => setEditRoom((p) => ({ ...p, roomType: e.target.value }))}
-                    placeholder="e.g. Deluxe Queen" className={inputCls} required />
+                  {roomTypes.length > 0 ? (
+                    <select value={editRoom.roomType || ""} onChange={(e) => setEditRoom((p) => ({ ...p, roomType: e.target.value }))}
+                      className={inputCls} required>
+                      <option value="">Select room type</option>
+                      {roomTypes.map((rt) => (
+                        <option key={rt.id} value={rt.name}>{rt.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input value={editRoom.roomType || ""} onChange={(e) => setEditRoom((p) => ({ ...p, roomType: e.target.value }))}
+                      placeholder="e.g. Deluxe Queen" className={inputCls} required />
+                  )}
                 </Field>
                 <Field label="Total Units">
                   <input type="number" min="1" value={editRoom.totalRooms || 1}
@@ -443,6 +492,20 @@ const RoomPanel = ({ hotel }) => {
                     className={inputCls} required />
                 </Field>
               </div>
+              <Field label="Bed Type">
+                {bedTypes.length > 0 ? (
+                  <select value={editRoom.bedType || ""} onChange={(e) => setEditRoom((p) => ({ ...p, bedType: e.target.value }))}
+                    className={inputCls}>
+                    <option value="">Select bed type</option>
+                    {bedTypes.map((bt) => (
+                      <option key={bt.id} value={bt.name}>{bt.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input value={editRoom.bedType || ""} onChange={(e) => setEditRoom((p) => ({ ...p, bedType: e.target.value }))}
+                    placeholder="e.g. King, Twin" className={inputCls} />
+                )}
+              </Field>
               <Field label="Description">
                 <textarea value={editRoom.description || ""}
                   onChange={(e) => setEditRoom((p) => ({ ...p, description: e.target.value }))}
