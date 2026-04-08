@@ -14,42 +14,46 @@ export const getHotelBookings = (hotelId, params = {}) => {
   if (params.refundStatus) queryParams.append('refundStatus', params.refundStatus);
 
   const queryString = queryParams.toString();
-  const url = `/api/hotels/${hotelId}/bookings${queryString ? `?${queryString}` : ''}`;
+  const url = `/hotels/${hotelId}/bookings${queryString ? `?${queryString}` : ''}`;
 
   return api.get(url).then(res => res.data);
 };
 
 // Get single booking by ID
 export const getBookingById = (bookingId) =>
-  api.get(`/api/bookings/${bookingId}`).then(res => res.data);
+  api.get(`/bookings/${bookingId}`).then(res => res.data);
 
 // Get today's check-ins
 export const getTodayCheckIns = (hotelId) =>
-  api.get(`/api/hotels/${hotelId}/checkins/today`).then(res => res.data);
+  api.get(`/hotels/${hotelId}/checkins/today`).then(res => res.data);
 
 // Get today's check-outs
 export const getTodayCheckOuts = (hotelId) =>
-  api.get(`/api/hotels/${hotelId}/checkouts/today`).then(res => res.data);
+  api.get(`/hotels/${hotelId}/checkouts/today`).then(res => res.data);
 
-// Check-in a booking
+// Check-in a booking (PUT as per API spec)
 export const checkInBooking = (bookingId) =>
-  api.put(`/api/bookings/${bookingId}/checkin`).then(res => res.data);
+  api.put(`/bookings/${bookingId}/checkin`).then(res => res.data);
 
-// Check-out a booking
+// Check-out a booking (PUT as per API spec)
 export const checkOutBooking = (bookingId) =>
-  api.put(`/api/bookings/${bookingId}/checkout`).then(res => res.data);
+  api.put(`/bookings/${bookingId}/checkout`).then(res => res.data);
 
 // Cancel a booking
 export const cancelBooking = (bookingId) =>
-  api.put(`/api/bookings/${bookingId}/cancel`).then(res => res.data);
+  api.put(`/bookings/${bookingId}/cancel`).then(res => res.data);
 
 // Get booking summary for a hotel
 export const getBookingSummary = (hotelId) =>
-  api.get(`/api/hotels/${hotelId}/bookings/summary`).then(res => res.data);
+  api.get(`/hotels/${hotelId}/bookings/summary`).then(res => res.data);
+
+// Get booking payment details
+export const getBookingPaymentDetails = (bookingId) =>
+  api.get(`/bookings/${bookingId}/payment`).then(res => res.data);
 
 // Process payment for a booking
 export const processPayment = (bookingId) =>
-  api.post(`/api/bookings/${bookingId}/payment`).then(res => res.data);
+  api.post(`/bookings/${bookingId}/payment`).then(res => res.data);
 
 // Get hotel revenue for a date range
 export const getHotelRevenue = (hotelId, fromDate, toDate) => {
@@ -58,5 +62,5 @@ export const getHotelRevenue = (hotelId, fromDate, toDate) => {
     toDate,
   });
 
-  return api.get(`/api/hotels/${hotelId}/revenue?${params}`).then(res => res.data);
+  return api.get(`/hotels/${hotelId}/revenue?${params}`).then(res => res.data);
 };

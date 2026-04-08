@@ -10,6 +10,7 @@ import {
   changePasswordApi,
   getUserByUsername,
   getUserByEmail,
+  getOwnerWallet,
 } from "../../api/auth";
 
 // ── THUNKS ────────────────────────────────────────────────────────────────
@@ -40,12 +41,25 @@ export const signinUser = createAsyncThunk(
   async ({ username, password, role }, { rejectWithValue }) => {
     try {
       // All staff (including managers) use the same login endpoint
-      const endpoint = "/api/staff/login";
-      console.log("[SIGNIN] → endpoint:", endpoint, "username:", username, "role:", role);
+      const endpoint = "/staff/login";
       const response = await loginApi(endpoint, { username, password });
       return response;
     } catch (error) {
       console.error("[SIGNIN] Failed:", error);
+      return rejectWithValue(error.message || "Invalid credentials");
+    }
+  }
+);
+
+export const signinOwner = createAsyncThunk(
+  "user/signinOwner",
+  async ({ username, password }, { rejectWithValue }) => {
+    try {
+      const endpoint = "/owners/login";
+      const response = await loginApi(endpoint, { username, password });
+      return response;
+    } catch (error) {
+      console.error("[OWNER SIGNIN] Failed:", error);
       return rejectWithValue(error.message || "Invalid credentials");
     }
   }
@@ -142,6 +156,20 @@ export const fetchUserByEmail = createAsyncThunk(
   }
 );
 
+export const fetchOwnerWallet = createAsyncThunk(
+  "user/fetchOwnerWallet",
+  async (_, { rejectWithValue }) => {
+    try {
+      const data = await getOwnerWallet();
+      return data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || error.message || "Failed to fetch wallet data"
+      );
+    }
+  }
+);
+
 // ── SLICE ─────────────────────────────────────────────────────────────────
 const initialState = {
   user: null,
@@ -154,6 +182,9 @@ const initialState = {
   isAuthenticated: !!localStorage.getItem("accessToken"),
   loading: false,
   error: null,
+  wallet: null,
+  walletLoading: false,
+  walletError: null,
 };
 
 const userSlice = createSlice({
@@ -162,6 +193,10 @@ const userSlice = createSlice({
   reducers: {
     clearError: (state) => {
       state.error = null;
+    },
+    setActiveHotelId: (state, action) => {
+      state.hotelId = action.payload || null;
+      localStorage.setItem("hotelId", state.hotelId || "");
     },
     restoreUser: (state) => {
       const userStr = localStorage.getItem("user");
@@ -195,7 +230,8 @@ const userSlice = createSlice({
           }
 
           state.hotelIds = hotelIds;
-          state.hotelId = hotelIds[0] || null;
+          const storedActive = localStorage.getItem("hotelId");
+          state.hotelId = (storedActive && hotelIds.includes(storedActive)) ? storedActive : (hotelIds[0] || null);
 
           state.accessToken = accessToken;
           state.refreshToken = localStorage.getItem("refreshToken") || null;
@@ -225,8 +261,8 @@ const userSlice = createSlice({
         state.accessToken = token;
         state.userId = user?.id || user?._id || null;
         state.userRole = user?.role || null;
-        state.hotelId = user?.hotelId || null;
         state.hotelIds = user?.hotels?.map(h => h._id || h.partneredHotelId || h.id).filter(Boolean) || [];
+        state.hotelId = state.hotelIds[0] || user?.hotelId || null;
         state.isAuthenticated = true;
 
         localStorage.setItem("user", JSON.stringify(user));
@@ -236,6 +272,9 @@ const userSlice = createSlice({
         if (state.hotelIds.length > 0) {
           localStorage.setItem("hotelIds", JSON.stringify(state.hotelIds));
           localStorage.setItem("hotelId", state.hotelIds[0]);
+        } else if (state.hotelId) {
+          localStorage.setItem("hotelIds", JSON.stringify([state.hotelId]));
+          localStorage.setItem("hotelId", state.hotelId);
         }
       })
       .addCase(signupUser.rejected, (state, action) => {
@@ -256,10 +295,10 @@ const userSlice = createSlice({
         state.refreshToken = refreshToken;
         state.userId = user?.id || user?._id || null;
         state.userRole = user?.role || null;
-        state.hotelId = user?.hotelId || null;
 
         // Prefer array from backend if available
         state.hotelIds = user?.hotels?.map(h => h._id || h.partneredHotelId || h.id).filter(Boolean) || [];
+        state.hotelId = state.hotelIds[0] || user?.hotelId || null;
 
         state.isAuthenticated = true;
         state.error = null;
@@ -274,7 +313,10 @@ const userSlice = createSlice({
           localStorage.setItem("hotelIds", JSON.stringify(state.hotelIds));
           localStorage.setItem("hotelId", state.hotelIds[0]);
         } else if (state.hotelId) {
+          // Staff/Manager: hotelId comes directly from user.hotelId, no hotels array
+          state.hotelIds = [state.hotelId];
           localStorage.setItem("hotelIds", JSON.stringify([state.hotelId]));
+          localStorage.setItem("hotelId", state.hotelId);
         }
       })
       .addCase(signinUser.rejected, (state, action) => {
@@ -282,7 +324,59 @@ const userSlice = createSlice({
         state.error = action.payload;
       })
 
+      // OWNER SIGNIN
+      .addCase(signinOwner.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(signinOwner.fulfilled, (state, action) => {
+        state.loading = false;
+        const { user, accessToken, refreshToken } = action.payload;
+        state.user = user;
+        state.accessToken = accessToken;
+        state.refreshToken = refreshToken;
+        state.userId = user?.id || user?._id || null;
+        state.userRole = user?.role || null;
+        state.hotelIds = user?.hotels?.map(h => h._id || h.partneredHotelId || h.id).filter(Boolean) || [];
+        state.hotelId = state.hotelIds[0] || user?.hotelId || null;
+        state.isAuthenticated = true;
+        state.error = null;
+
+        localStorage.setItem("user", JSON.stringify(user));
+        localStorage.setItem("accessToken", accessToken || "");
+        localStorage.setItem("refreshToken", refreshToken || "");
+        localStorage.setItem("userId", state.userId || "");
+        localStorage.setItem("userRole", state.userRole || "");
+
+        if (state.hotelIds.length > 0) {
+          localStorage.setItem("hotelIds", JSON.stringify(state.hotelIds));
+          localStorage.setItem("hotelId", state.hotelIds[0]);
+        } else if (state.hotelId) {
+          state.hotelIds = [state.hotelId];
+          localStorage.setItem("hotelIds", JSON.stringify([state.hotelId]));
+          localStorage.setItem("hotelId", state.hotelId);
+        }
+      })
+      .addCase(signinOwner.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
       // ... (keep your other cases: fetchCurrentUser, updateProfile, logoutUser, etc.)
+
+      // FETCH OWNER WALLET
+      .addCase(fetchOwnerWallet.pending, (state) => {
+        state.walletLoading = true;
+        state.walletError = null;
+      })
+      .addCase(fetchOwnerWallet.fulfilled, (state, action) => {
+        state.walletLoading = false;
+        state.wallet = action.payload;
+      })
+      .addCase(fetchOwnerWallet.rejected, (state, action) => {
+        state.walletLoading = false;
+        state.walletError = action.payload;
+      })
 
       // Generic matchers
       .addMatcher(
@@ -302,7 +396,7 @@ const userSlice = createSlice({
   },
 });
 
-export const { clearError, restoreUser } = userSlice.actions;
+export const { clearError, restoreUser, setActiveHotelId } = userSlice.actions;
 export default userSlice.reducer;
 
 // Selectors
@@ -316,3 +410,6 @@ export const selectUserLoading = (state) => state.user.loading;
 export const selectUserError = (state) => state.user.error;
 export const selectIsHotelManager = (state) =>
   ["HOTELMANAGER", "manager"].includes(state.user.userRole);
+export const selectWallet = (state) => state.user.wallet;
+export const selectWalletLoading = (state) => state.user.walletLoading;
+export const selectWalletError = (state) => state.user.walletError;

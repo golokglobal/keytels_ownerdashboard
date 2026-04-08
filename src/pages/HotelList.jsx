@@ -1,307 +1,751 @@
-// src/pages/HotelList.jsx
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchAllOwnerHotels, fetchHotelById, deleteHotel, clearHotelError, clearAllHotels } from '../store/slices/PartnerHotelslice';
+import { motion } from 'framer-motion';
+import {
+  fetchHotelById,
+  fetchOwnerHotels,
+  deleteHotel,
+  clearHotelError,
+  clearAllHotels,
+} from '../store/slices/PartnerHotelslice';
 import { useNavigate } from 'react-router-dom';
-import { Edit, Trash2, Plus, Building2, MapPin, Sparkles, DollarSign, BedDouble, Star } from 'lucide-react';
+import {
+  Edit, Trash2, Plus, Building2, MapPin, BedDouble,
+  CheckCircle, XCircle, Percent, Image as ImageIcon,
+  ChevronRight,
+} from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { ConfirmModal } from '../components/common/ConfirmModal';
 
-export const HotelList = () => {
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const { hotels, loading, error } = useSelector((state) => state.partneredhotels);
+/* ── helpers ── */
+const getHotelId = (h) => h?.partneredHotelId || h?.id || h?._id || h?.hotelId || null;
+const getRoomId  = (r) => r?.roomId || r?.id || null;
 
-  const userRole = useSelector((state) => state.user.userRole);
-  const userId = useSelector((state) => state.user.userId);
-  const managerHotelId = useSelector((state) => state.user.hotelId);
-  const isHotelManager = useSelector((state) =>
-    state.user.userRole === 'HOTELMANAGER' ||
-    state.user.userRole === 'manager' ||
-    state.user.userRole === 'HOTELMANAGER'
-  );
+const inputCls =
+  'w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100 transition-all bg-white';
 
-  // Helper: get consistent hotel ID
-  const getHotelId = (hotel) =>
-    hotel?.partneredHotelId ||
-    hotel?.id ||
-    hotel?._id ||
-    hotel?.hotelId ||
+/* ── Tiny hotel thumbnail ── */
+const HotelThumb = ({ hotel }) => {
+  const img =
+    hotel.hotelImages?.[0]?.imageUrl ||
+    hotel.rooms?.find((r) => r.images?.[0])?.images?.[0]?.imageUrl ||
     null;
+  return img ? (
+    <img src={img} alt={hotel.name} className="w-12 h-12 rounded-xl object-cover shrink-0 ring-1 ring-slate-200" onError={(e) => { e.target.style.display = 'none'; }} />
+  ) : (
+    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center shrink-0">
+      <Building2 className="w-5 h-5 text-slate-400" />
+    </div>
+  );
+};
 
-  useEffect(() => {
-    const loadHotels = async () => {
-      // Clear previous user's hotels before loading new ones
-      dispatch(clearAllHotels());
 
-      try {
-        if (isHotelManager) {
-          // Manager: fetch single hotel by ID
-          if (managerHotelId) {
-            console.log(`[HotelList] Manager ${userId} loading assigned hotel ID: ${managerHotelId}`);
-            await dispatch(fetchHotelById(managerHotelId)).unwrap();
-          } else {
-            console.warn('[HotelList] Manager has no hotelId in state');
-            toast.error('No hotel assigned to your account');
-          }
-        } else {
-          // Owner: try to fetch all hotels
-          console.log(`[HotelList] Owner ${userId} loading hotels`);
+/* ══════════════════════════════════════════════════════════
+   HOTEL DETAIL PANEL — shown when a hotel row is expanded
+══════════════════════════════════════════════════════════ */
+const HotelDetailPanel = ({ hotel, isManager, onEditHotel, onDeleteHotel }) => {
+  const dispatch = useDispatch();
+  const { roomImages } = useSelector((s) => s.partneredhotels);
+  const sliceLoading = useSelector((s) => s.partneredhotels.loading);
 
-          try {
-            await dispatch(fetchAllOwnerHotels()).unwrap();
-          } catch (apiErr) {
-            // Fallback: If API doesn't exist, try using hotelId from login response
-            console.warn('[HotelList] fetchAllOwnerHotels failed, trying fallback with hotelId from login');
+  const hotelId = getHotelId(hotel);
+  const amenities = Array.isArray(hotel.amenities) ? hotel.amenities : [];
 
-            if (managerHotelId) {
-              console.log(`[HotelList] Fallback: Loading hotel ${managerHotelId} from login response`);
-              await dispatch(fetchHotelById(managerHotelId)).unwrap();
-              toast.info('Using hotel from your account. Backend should implement GET /api/partneredhotel/owner/hotels for multiple hotels');
-            } else {
-              throw apiErr; // Re-throw if no fallback available
-            }
-          }
-        }
-      } catch (err) {
-        console.error('[HotelList] Load error:', err);
-        const errorMessage = err.message || err.toString() || 'Failed to load hotels';
+  const [rooms, setRooms] = useState(Array.isArray(hotel.rooms) ? hotel.rooms : []);
+  const [roomsLoading, setRoomsLoading] = useState(false);
 
-        // Check if backend endpoint doesn't exist yet
-        if (errorMessage.includes('404') || errorMessage.includes('Not Found')) {
-          toast.error('Backend endpoint not implemented yet. Please add GET /api/partneredhotel/owner/hotels');
-        } else {
-          toast.error(errorMessage);
-        }
-      }
-    };
+  /* room modals */
+  const EMPTY = { roomType: '', description: '', capacity: '', pricePerNight: '', isAvailable: true, totalRooms: '1' };
+  const [showAdd,    setShowAdd]    = useState(false);
+  const [showEdit,   setShowEdit]   = useState(false);
+  const [editRoom,   setEditRoom]   = useState(null);
+  const [deleteRoom, setDeleteRoom] = useState(null);
+  const [showDel,    setShowDel]    = useState(false);
+  const [roomForm,   setRoomForm]   = useState(EMPTY);
+  const [formErr,    setFormErr]    = useState('');
 
-    // Only load if user is authenticated
-    if (userId) {
-      loadHotels();
-    }
-
-    return () => {
-      dispatch(clearHotelError());
-    };
-  }, [dispatch, isHotelManager, managerHotelId, userId]);
-
-  const handleDelete = async (hotelId) => {
-    if (!window.confirm('Delete this hotel permanently? This cannot be undone.')) return;
-
+  const refresh = async () => {
+    setRoomsLoading(true);
     try {
-      await dispatch(deleteHotel(hotelId)).unwrap();
-      toast.success('Hotel deleted successfully');
-    } catch (err) {
-      console.error('[HotelList] Delete failed:', err);
-      toast.error(err.message || 'Failed to delete hotel');
+      const res = await dispatch(fetchRoomsByHotel(hotelId)).unwrap();
+      setRooms(Array.isArray(res.rooms) ? res.rooms : []);
+    } catch { /* silent */ }
+    finally { setRoomsLoading(false); }
+  };
+
+  /* load images for all rooms */
+  useEffect(() => {
+    rooms.forEach((r) => {
+      const rid = getRoomId(r);
+      if (rid && !roomImages[rid]) dispatch(fetchRoomImages(rid));
+    });
+  }, [rooms, dispatch, roomImages]);
+
+  const handleAddRoom = async (e) => {
+    e.preventDefault();
+    if (!roomForm.roomType || !roomForm.capacity || !roomForm.pricePerNight) {
+      setFormErr('Room type, capacity and price are required.'); return;
     }
+    try {
+      await dispatch(createHotelRoom({
+        hotelId,
+        data: {
+          roomType: roomForm.roomType,
+          description: roomForm.description || '',
+          capacity: Number(roomForm.capacity),
+          pricePerNight: Number(roomForm.pricePerNight),
+          isAvailable: roomForm.isAvailable,
+          totalRooms: Number(roomForm.totalRooms) || 1,
+        },
+      })).unwrap();
+      toast.success('Room added!');
+      setShowAdd(false); setRoomForm(EMPTY); setFormErr('');
+      await refresh();
+    } catch (err) { toast.error(err?.message || 'Failed to add room'); }
+  };
+
+  const handleUpdateRoom = async (e) => {
+    e.preventDefault();
+    const rid = getRoomId(editRoom);
+    if (!rid) { toast.error('Invalid room ID'); return; }
+    try {
+      await dispatch(updateHotelRoom({
+        roomId: rid,
+        data: {
+          roomType: editRoom.roomType,
+          description: editRoom.description || '',
+          capacity: Number(editRoom.capacity),
+          pricePerNight: Number(editRoom.pricePerNight || editRoom.basePrice),
+          isAvailable: editRoom.isAvailable ?? true,
+          totalRooms: Number(editRoom.totalRooms) || 1,
+          status: editRoom.status || 'ACTIVE',
+        },
+      })).unwrap();
+      toast.success('Room updated!');
+      setShowEdit(false); setEditRoom(null);
+      await refresh();
+    } catch (err) { toast.error(err?.message || 'Failed to update room'); }
+  };
+
+  const handleDeleteRoom = async () => {
+    const rid = getRoomId(deleteRoom);
+    if (!rid) return;
+    try {
+      await dispatch(deleteHotelRoom(rid)).unwrap();
+      toast.success('Room deactivated!');
+      setShowDel(false); setDeleteRoom(null);
+      await refresh();
+    } catch (err) { toast.error(err?.message || 'Failed to deactivate room'); }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 py-8 px-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg">
-                <Building2 className="w-8 h-8 text-white" />
-              </div>
-              <h1 className="text-4xl font-black text-slate-900 tracking-tight">
-                {isHotelManager ? 'My Hotel' : 'My Hotels'}
-              </h1>
+    <div className="border-t border-slate-100 bg-slate-50/60">
+      {/* ── Hotel info strip ── */}
+      <div className="px-6 py-5 border-b border-slate-100 bg-white">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-5">
+          {/* Hotel images strip */}
+          {(hotel.hotelImages?.length > 0) && (
+            <div className="flex gap-2 shrink-0">
+              {hotel.hotelImages.slice(0, 3).map((img, i) => (
+                <img key={i} src={img.imageUrl} alt="" className="w-20 h-16 rounded-xl object-cover ring-1 ring-slate-200" onError={(e)=>{e.target.style.display='none';}} />
+              ))}
             </div>
-            <p className="text-slate-600 text-lg ml-16">
-              {isHotelManager
-                ? 'Manage your assigned property'
-                : 'Manage your partnered properties'}
-            </p>
-          </div>
-
-          {!isHotelManager && (
-            <button
-              onClick={() => navigate('/add-hotel')}
-              className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-2xl transition-all hover:scale-105 flex items-center justify-center gap-2 font-semibold shadow-lg"
-            >
-              <Plus className="w-5 h-5" /> Add New Hotel
-            </button>
           )}
-        </div>
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-xl flex gap-3 items-start shadow-md">
-            <div className="text-red-600 font-semibold">{error}</div>
-          </div>
-        )}
+          <div className="flex-1 min-w-0 space-y-3">
+            {hotel.description && (
+              <p className="text-sm text-slate-500 leading-relaxed">{hotel.description}</p>
+            )}
 
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-indigo-600 border-t-transparent mx-auto mb-4"></div>
-              <p className="text-slate-600 font-medium">Loading hotels...</p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {hotels.length > 0 ? (
-              hotels.map((hotel) => {
-                const id = getHotelId(hotel);
-                if (!id) {
-                  console.warn('[HotelList] Hotel missing ID → skipping', hotel);
-                  return null;
-                }
+            {/* Amenities */}
+            {amenities.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {amenities.map((a, i) => {
+                  const Icon = getAmenityIcon(typeof a === 'string' ? a : a?.name || '');
+                  return (
+                    <span key={i} className="flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-600 font-medium capitalize">
+                      <Icon className="w-3 h-3 text-slate-400" />
+                      {typeof a === 'string' ? a : a?.name || ''}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
 
-                // More flexible field extraction
-                const name = hotel.hotelName || hotel.name || hotel.title || 'Unnamed Hotel';
-                const city = hotel.city || hotel.location?.city || hotel.address?.city || '—';
-                const country = hotel.country || hotel.location?.country || hotel.address?.country || '—';
-
-                const rooms = Array.isArray(hotel.rooms) ? hotel.rooms : [];
-                const amenities = Array.isArray(hotel.amenities) ? hotel.amenities : [];
-
-                const prices = rooms
-                  .map((r) => Number(r.pricePerNight || r.basePrice || r.price || 0))
-                  .filter((p) => p > 0);
-
-                const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
-                const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
-
-                return (
-                  <div
-                    key={id}
-                    className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-slate-200 hover:border-indigo-300"
-                  >
-                    {/* Card Header */}
-                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
-                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-10 rounded-full -ml-12 -mb-12"></div>
-                      <div className="relative">
-                        <h3 className="text-2xl font-bold text-white mb-1">{name}</h3>
-                        <div className="flex items-center gap-2 text-indigo-100">
-                          <MapPin className="w-4 h-4" />
-                          <span className="text-sm font-medium">
-                            {city}, {country}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Card Body */}
-                    <div className="p-6 space-y-4">
-                      {/* Stats Grid */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-3 border border-blue-100">
-                          <div className="flex items-center gap-2 mb-1">
-                            <BedDouble className="w-4 h-4 text-blue-600" />
-                            <span className="text-xs font-semibold text-blue-900">Rooms</span>
-                          </div>
-                          <p className="text-2xl font-bold text-blue-600">{rooms.length}</p>
-                        </div>
-
-                        <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-3 border border-purple-100">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Sparkles className="w-4 h-4 text-purple-600" />
-                            <span className="text-xs font-semibold text-purple-900">Amenities</span>
-                          </div>
-                          <p className="text-2xl font-bold text-purple-600">{amenities.length}</p>
-                        </div>
-                      </div>
-
-                      {/* Price Range */}
-                      {prices.length > 0 && (
-                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
-                          <div className="flex items-center gap-2 mb-2">
-                            <DollarSign className="w-5 h-5 text-green-600" />
-                            <span className="text-sm font-bold text-green-900">Price Range</span>
-                          </div>
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-3xl font-black text-green-600">${minPrice}</span>
-                            <span className="text-slate-500">-</span>
-                            <span className="text-3xl font-black text-green-600">${maxPrice}</span>
-                            <span className="text-sm text-slate-600 font-medium">/ night</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Amenities */}
-                      {amenities.length > 0 && (
-                        <div>
-                          <p className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1">
-                            <Star className="w-3 h-3" />
-                            Featured Amenities
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {amenities.slice(0, 4).map((amenity, idx) => (
-                              <span
-                                key={idx}
-                                className="px-3 py-1 bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 text-xs rounded-full font-semibold border border-indigo-200"
-                              >
-                                {typeof amenity === 'string' ? amenity : amenity?.name || '—'}
-                              </span>
-                            ))}
-                            {amenities.length > 4 && (
-                              <span className="px-3 py-1 bg-slate-100 text-slate-600 text-xs rounded-full font-semibold border border-slate-200">
-                                +{amenities.length - 4}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Temporary debug – remove after confirming data shows */}
-                      {/* <div className="mt-4 p-3 bg-gray-100 rounded text-xs font-mono overflow-auto max-h-40">
-                        <pre>{JSON.stringify(hotel, null, 2)}</pre>
-                      </div> */}
-                    </div>
-
-                    {/* Footer - Actions */}
-                    <div className="px-6 pb-6 flex gap-3">
-                      <button
-                        onClick={() => navigate(`/hotels/edit/${id}`)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all hover:shadow-lg font-semibold group-hover:scale-105 transform duration-200"
-                      >
-                        <Edit className="w-4 h-4" /> Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(id)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl hover:from-red-700 hover:to-rose-700 transition-all hover:shadow-lg font-semibold group-hover:scale-105 transform duration-200"
-                      >
-                        <Trash2 className="w-4 h-4" /> Delete
-                      </button>
-                    </div>
+            {/* Owner info */}
+            {hotel.owner && (
+              <div className="flex items-center gap-2.5 pt-1">
+                {hotel.owner.profileImageUrl ? (
+                  <img src={hotel.owner.profileImageUrl} alt="" className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200" onError={(e)=>{e.target.style.display='none';}} />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                    {(hotel.owner.firstName?.[0] || '') + (hotel.owner.lastName?.[0] || '')}
                   </div>
-                );
-              })
-            ) : (
-              <div className="col-span-full">
-                <div className="bg-white rounded-3xl shadow-xl p-16 text-center border-2 border-dashed border-slate-300">
-                  <div className="max-w-md mx-auto">
-                    <div className="w-24 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <Building2 className="w-12 h-12 text-indigo-600" />
-                    </div>
-                    <h3 className="text-2xl font-bold text-slate-900 mb-3">
-                      {isHotelManager ? 'No Hotel Assigned' : 'No Hotels Yet'}
-                    </h3>
-                    <p className="text-slate-600 mb-8 text-lg">
-                      {isHotelManager
-                        ? 'Contact support or admin to assign a hotel to your account.'
-                        : 'Start building your portfolio by adding your first property!'}
-                    </p>
-                    {!isHotelManager && (
-                      <button
-                        onClick={() => navigate('/add-hotel')}
-                        className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-2xl transition-all hover:scale-105 inline-flex items-center gap-3 font-bold text-lg"
-                      >
-                        <Plus className="w-6 h-6" /> Add Your First Hotel
-                      </button>
-                    )}
-                  </div>
+                )}
+                <div>
+                  <span className="text-xs font-semibold text-slate-700">
+                    {[hotel.owner.firstName, hotel.owner.lastName].filter(Boolean).join(' ') || 'Owner'}
+                  </span>
+                  {hotel.owner.email && (
+                    <span className="text-xs text-slate-400 ml-1.5">· {hotel.owner.email}</span>
+                  )}
                 </div>
               </div>
             )}
           </div>
+
+          {/* Hotel action buttons */}
+          {!isManager && (
+            <div className="flex gap-2 shrink-0">
+              <button onClick={onEditHotel}
+                className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-700 transition-colors">
+                <Edit className="w-3.5 h-3.5" /> Edit Hotel
+              </button>
+              <button onClick={onDeleteHotel}
+                className="flex items-center gap-1.5 px-4 py-2 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-100 transition-colors">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Rooms section ── */}
+      <div className="px-6 py-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2">
+              <BedDouble className="w-4 h-4 text-slate-500" /> Rooms
+            </h3>
+            <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+              {rooms.length}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={refresh} disabled={roomsLoading}
+              className="p-2 border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-40">
+              <RefreshCw className={`w-3.5 h-3.5 ${roomsLoading ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={() => { setRoomForm(EMPTY); setFormErr(''); setShowAdd(true); }}
+              className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-colors">
+              <Plus className="w-3.5 h-3.5" /> Add Room
+            </button>
+          </div>
+        </div>
+
+        {/* Rooms loading */}
+        {roomsLoading && (
+          <div className="flex items-center justify-center py-10">
+            <div className="animate-spin rounded-full h-7 w-7 border-4 border-slate-900 border-t-transparent" />
+          </div>
+        )}
+
+        {/* Room cards grid */}
+        {!roomsLoading && rooms.length === 0 && (
+          <div className="bg-white rounded-2xl border border-dashed border-slate-200 py-12 text-center">
+            <BedDouble className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+            <p className="text-slate-500 text-sm font-medium mb-4">No rooms added yet</p>
+            <button
+              onClick={() => { setRoomForm(EMPTY); setFormErr(''); setShowAdd(true); }}
+              className="px-5 py-2 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-colors inline-flex items-center gap-2">
+              <Plus className="w-3.5 h-3.5" /> Add First Room
+            </button>
+          </div>
+        )}
+
+        {!roomsLoading && rooms.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {rooms.map((room, idx) => {
+              const rid = getRoomId(room);
+              const statusKey = normalizeRoomStatus(room.isAvailable, room.status);
+              const { label: sLabel, cls: sCls, Icon: SIcon } = STATUS_ROOM[statusKey] || STATUS_ROOM.active;
+              const imgs = roomImages[rid] || room.images || [];
+
+              return (
+                <motion.div
+                  key={rid || idx}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.04, type: 'spring', stiffness: 220, damping: 22 }}
+                  className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 flex flex-col"
+                >
+                  {/* Image */}
+                  <div className="relative overflow-hidden">
+                    <RoomThumb images={imgs} />
+                    <span className={`absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${sCls}`}>
+                      <SIcon className="w-2.5 h-2.5" /> {sLabel}
+                    </span>
+                  </div>
+
+                  {/* Body */}
+                  <div className="flex-1 flex flex-col p-4 gap-3">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm capitalize leading-tight">{room.roomType}</h4>
+                      {room.description && (
+                        <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{room.description}</p>
+                      )}
+                    </div>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <div className="bg-blue-50 rounded-lg p-2 text-center">
+                        <Users className="w-3 h-3 text-blue-500 mx-auto mb-0.5" />
+                        <p className="text-xs font-bold text-blue-700">{room.capacity}</p>
+                        <p className="text-[10px] text-slate-400">Guests</p>
+                      </div>
+                      <div className="bg-emerald-50 rounded-lg p-2 text-center">
+                        <DollarSign className="w-3 h-3 text-emerald-500 mx-auto mb-0.5" />
+                        <p className="text-xs font-bold text-emerald-700">${room.pricePerNight || room.basePrice || 0}</p>
+                        <p className="text-[10px] text-slate-400">/night</p>
+                      </div>
+                      <div className="bg-violet-50 rounded-lg p-2 text-center">
+                        <Hash className="w-3 h-3 text-violet-500 mx-auto mb-0.5" />
+                        <p className="text-xs font-bold text-violet-700">{room.totalRooms || 1}</p>
+                        <p className="text-[10px] text-slate-400">Units</p>
+                      </div>
+                    </div>
+
+                    <div className="flex-1" />
+
+                    {/* Actions */}
+                    <div className="flex gap-1.5 pt-2 border-t border-slate-100">
+                      <button
+                        onClick={() => { setEditRoom({ ...room }); setShowEdit(true); }}
+                        className="flex-1 flex items-center justify-center gap-1 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-700 transition-colors">
+                        <Edit className="w-3 h-3" /> Edit
+                      </button>
+                      <button
+                        onClick={() => { setDeleteRoom(room); setShowDel(true); }}
+                        className="p-2 bg-red-50 border border-red-200 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
         )}
       </div>
+
+      {/* ── Add Room Modal ── */}
+      <AnimatePresence>
+        {showAdd && (
+          <Modal title="Add New Room" onClose={() => setShowAdd(false)}>
+            <form onSubmit={handleAddRoom} className="space-y-4">
+              {formErr && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{formErr}</p>}
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Room Type *">
+                  <input value={roomForm.roomType} onChange={(e) => setRoomForm((p) => ({ ...p, roomType: e.target.value }))}
+                    placeholder="e.g. Deluxe Queen" className={inputCls} required />
+                </Field>
+                <Field label="Total Units">
+                  <input type="number" min="1" value={roomForm.totalRooms}
+                    onChange={(e) => setRoomForm((p) => ({ ...p, totalRooms: e.target.value }))}
+                    placeholder="1" className={inputCls} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Capacity *">
+                  <input type="number" min="1" value={roomForm.capacity}
+                    onChange={(e) => setRoomForm((p) => ({ ...p, capacity: e.target.value }))}
+                    placeholder="2" className={inputCls} required />
+                </Field>
+                <Field label="Price / Night *">
+                  <input type="number" min="0" step="0.01" value={roomForm.pricePerNight}
+                    onChange={(e) => setRoomForm((p) => ({ ...p, pricePerNight: e.target.value }))}
+                    placeholder="180.00" className={inputCls} required />
+                </Field>
+              </div>
+              <Field label="Description">
+                <textarea value={roomForm.description}
+                  onChange={(e) => setRoomForm((p) => ({ ...p, description: e.target.value }))}
+                  placeholder="Spacious room with garden view..." rows="2" className={`${inputCls} resize-none`} />
+              </Field>
+              <Field label="Availability">
+                <div className="flex gap-3">
+                  {[true, false].map((val) => (
+                    <button key={String(val)} type="button"
+                      onClick={() => setRoomForm((p) => ({ ...p, isAvailable: val }))}
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
+                        roomForm.isAvailable === val
+                          ? val ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-700 text-white border-slate-700'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                      }`}>
+                      {val ? 'Available' : 'Unavailable'}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              <ModalFooter onCancel={() => setShowAdd(false)} label="Add Room" loading={sliceLoading} />
+            </form>
+          </Modal>
+        )}
+      </AnimatePresence>
+
+      {/* ── Edit Room Modal ── */}
+      <AnimatePresence>
+        {showEdit && editRoom && (
+          <Modal title="Edit Room" onClose={() => { setShowEdit(false); setEditRoom(null); }}>
+            <form onSubmit={handleUpdateRoom} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Room Type *">
+                  <input value={editRoom.roomType || ''} onChange={(e) => setEditRoom((p) => ({ ...p, roomType: e.target.value }))}
+                    className={inputCls} required />
+                </Field>
+                <Field label="Total Units">
+                  <input type="number" min="1" value={editRoom.totalRooms || 1}
+                    onChange={(e) => setEditRoom((p) => ({ ...p, totalRooms: e.target.value }))}
+                    className={inputCls} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Capacity *">
+                  <input type="number" min="1" value={editRoom.capacity || ''}
+                    onChange={(e) => setEditRoom((p) => ({ ...p, capacity: e.target.value }))}
+                    className={inputCls} required />
+                </Field>
+                <Field label="Price / Night *">
+                  <input type="number" min="0" step="0.01"
+                    value={editRoom.pricePerNight || editRoom.basePrice || ''}
+                    onChange={(e) => setEditRoom((p) => ({ ...p, pricePerNight: e.target.value }))}
+                    className={inputCls} required />
+                </Field>
+              </div>
+              <Field label="Description">
+                <textarea value={editRoom.description || ''}
+                  onChange={(e) => setEditRoom((p) => ({ ...p, description: e.target.value }))}
+                  rows="2" className={`${inputCls} resize-none`} />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Status">
+                  <select value={editRoom.status || 'ACTIVE'}
+                    onChange={(e) => setEditRoom((p) => ({ ...p, status: e.target.value }))}
+                    className={inputCls}>
+                    <option value="ACTIVE">Active</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </select>
+                </Field>
+                <Field label="Availability">
+                  <select value={String(editRoom.isAvailable ?? true)}
+                    onChange={(e) => setEditRoom((p) => ({ ...p, isAvailable: e.target.value === 'true' }))}
+                    className={inputCls}>
+                    <option value="true">Available</option>
+                    <option value="false">Unavailable</option>
+                  </select>
+                </Field>
+              </div>
+              <ModalFooter onCancel={() => { setShowEdit(false); setEditRoom(null); }} label="Save Changes" loading={sliceLoading} />
+            </form>
+          </Modal>
+        )}
+      </AnimatePresence>
+
+      {/* ── Confirm Deactivate Room ── */}
+      <ConfirmModal
+        isOpen={showDel}
+        title="Deactivate Room"
+        message={`Deactivate "${deleteRoom?.roomType}"? It will be hidden from guests.`}
+        confirmLabel="Deactivate"
+        loading={sliceLoading}
+        onConfirm={handleDeleteRoom}
+        onCancel={() => { setShowDel(false); setDeleteRoom(null); }}
+      />
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════════════
+   MAIN PAGE
+══════════════════════════════════════════════════════════ */
+export const HotelList = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { hotels, loading, error } = useSelector((s) => s.partneredhotels);
+
+  const userId         = useSelector((s) => s.user.userId);
+  const managerHotelId = useSelector((s) => s.user.hotelId);
+  const userRole       = useSelector((s) => s.user.userRole);
+  const isHotelOwner   = userRole === 'HOTEL_OWNER';
+  const isHotelManager = ['HOTEL_MANAGER', 'HOTELMANAGER', 'manager'].includes(userRole);
+
+  const [deleteTarget, setDeleteTarget]     = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      dispatch(clearAllHotels());
+      try {
+        if (isHotelOwner) {
+          await dispatch(fetchOwnerHotels()).unwrap();
+        } else if (managerHotelId) {
+          await dispatch(fetchHotelById(managerHotelId)).unwrap();
+        } else {
+          toast.error('No hotel assigned to your account');
+        }
+      } catch (err) {
+        toast.error(err?.message || 'Failed to load hotels');
+      }
+    };
+    if (userId) load();
+    return () => { dispatch(clearHotelError()); };
+  }, [dispatch, isHotelOwner, isHotelManager, managerHotelId, userId]);
+
+  const handleDeleteConfirm = async () => {
+    const id = getHotelId(deleteTarget);
+    if (!id) return;
+    try {
+      await dispatch(deleteHotel(id)).unwrap();
+      toast.success('Hotel deactivated successfully');
+      setShowDeleteModal(false);
+      setDeleteTarget(null);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to deactivate hotel');
+    }
+  };
+
+  const totalHotels  = hotels.length;
+  const totalRooms   = hotels.reduce((s, h) => s + (h.rooms?.length || 0), 0);
+  const activeHotels = hotels.filter((h) => h.status?.toUpperCase() === 'ACTIVE').length;
+
+  /* ── Group hotels by propertyType ── */
+  const grouped = hotels.reduce((acc, hotel) => {
+    const key = hotel.propertyType || 'Uncategorized';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(hotel);
+    return acc;
+  }, {});
+  const groupKeys = Object.keys(grouped).sort();
+
+  /* ── Single hotel row ── */
+  const HotelRow = ({ hotel, index }) => {
+    const id       = getHotelId(hotel);
+    if (!id) return null;
+    const name     = hotel.name || hotel.hotelName || 'Unnamed Hotel';
+    const location = hotel.location || '—';
+    const rooms    = Array.isArray(hotel.rooms) ? hotel.rooms : [];
+    const status   = hotel.status?.toUpperCase() || 'UNKNOWN';
+    const isActive = status === 'ACTIVE';
+    const discount = hotel.discountPercentage || 0;
+    const prices   = rooms.map((r) => Number(r.pricePerNight || r.basePrice || 0)).filter((p) => p > 0);
+    const minP     = prices.length ? Math.min(...prices) : 0;
+
+    return (
+      <motion.div
+        key={id}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.04 }}
+        onClick={() => navigate(`/hotels/${id}`)}
+        className="grid grid-cols-[40px_1fr_auto] sm:grid-cols-[48px_1fr_140px_100px_80px_120px] gap-3 sm:gap-4 items-center px-5 py-4 cursor-pointer hover:bg-slate-50/80 transition-colors border-b border-slate-100 last:border-0"
+      >
+        {/* Thumbnail */}
+        <HotelThumb hotel={hotel} />
+
+        {/* Name */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-bold text-slate-900 text-sm truncate">{name}</h3>
+            {discount > 0 && (
+              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
+                <Percent className="w-2.5 h-2.5" />{discount}% off
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5 truncate sm:hidden">{location}</p>
+          {minP > 0 && (
+            <p className="text-xs text-slate-400 mt-0.5">
+              From <span className="font-semibold text-emerald-600">${minP}</span>/night
+            </p>
+          )}
+        </div>
+
+        {/* Location */}
+        <div className="hidden sm:flex items-center gap-1.5 truncate">
+          <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+          <span className="truncate text-xs text-slate-500">{location}</span>
+        </div>
+
+        {/* Rooms count */}
+        <div className="hidden sm:flex items-center gap-1.5">
+          <BedDouble className="w-3.5 h-3.5 text-slate-400" />
+          <span className="font-semibold text-xs text-slate-700">{rooms.length}</span>
+          <span className="text-slate-400 text-xs">room{rooms.length !== 1 ? 's' : ''}</span>
+        </div>
+
+        {/* Status */}
+        <div className="hidden sm:block">
+          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
+            isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+          }`}>
+            {isActive ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5" />}
+            {isActive ? 'Active' : status}
+          </span>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 justify-end">
+          <button
+            onClick={(e) => { e.stopPropagation(); navigate(`/hotels/edit/${id}`); }}
+            className="hidden sm:flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
+          >
+            <Edit className="w-3 h-3" /> Edit
+          </button>
+          {!isHotelManager && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setDeleteTarget(hotel); setShowDeleteModal(true); }}
+              className="hidden sm:flex items-center justify-center p-1.5 bg-red-50 border border-red-200 text-red-500 rounded-lg hover:bg-red-100 transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+          <ChevronRight className="w-4 h-4 text-slate-400" />
+        </div>
+      </motion.div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="w-full px-4 sm:px-6 py-8 space-y-6">
+
+        {/* ── Header ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shrink-0">
+              <Building2 className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">
+                {isHotelManager ? 'My Hotel' : 'Hotels'}
+              </h1>
+              <p className="text-slate-500 text-sm">
+                {isHotelManager ? 'Manage your assigned property' : 'Manage your properties'}
+              </p>
+            </div>
+          </div>
+          {!isHotelManager && (
+            <motion.button
+              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('/add-hotel')}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 transition-colors shadow-sm text-sm"
+            >
+              <Plus className="w-4 h-4" /> Add Hotel
+            </motion.button>
+          )}
+        </div>
+
+        {/* ── Stats ── */}
+        {hotels.length > 0 && (
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: 'Total Hotels', value: totalHotels,  Icon: Building2,  color: 'text-slate-700',    bg: 'bg-slate-100'  },
+              { label: 'Total Rooms',  value: totalRooms,   Icon: BedDouble,  color: 'text-blue-600',     bg: 'bg-blue-50'    },
+              { label: 'Active',       value: activeHotels, Icon: CheckCircle,color: 'text-emerald-600',  bg: 'bg-emerald-50' },
+            ].map(({ label, value, Icon, color, bg }, i) => (
+              <motion.div key={label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+                  <Icon className={`w-5 h-5 ${color}`} />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 font-medium">{label}</p>
+                  <p className={`text-xl font-bold ${color}`}>{value}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Error ── */}
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium">{error}</div>
+        )}
+
+        {/* ── Loading ── */}
+        {loading && hotels.length === 0 && (
+          <div className="flex items-center justify-center py-24">
+            <div className="flex flex-col items-center gap-4">
+              <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-900 border-t-transparent" />
+              <p className="text-slate-500 text-sm font-medium">Loading hotels…</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Empty ── */}
+        {!loading && hotels.length === 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 text-center">
+            <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <Building2 className="w-10 h-10 text-slate-400" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">
+              {isHotelManager ? 'No Hotel Assigned' : 'No Hotels Yet'}
+            </h3>
+            <p className="text-slate-500 text-sm mb-8 max-w-sm mx-auto">
+              {isHotelManager
+                ? 'Contact your admin to assign a hotel to your account.'
+                : 'Start building your portfolio by adding your first property.'}
+            </p>
+            {!isHotelManager && (
+              <button onClick={() => navigate('/add-hotel')}
+                className="px-6 py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 transition-colors inline-flex items-center gap-2 shadow-sm text-sm">
+                <Plus className="w-4 h-4" /> Add Your First Hotel
+              </button>
+            )}
+          </motion.div>
+        )}
+
+        {/* ── Hotels grouped by property type ── */}
+        {!loading && hotels.length > 0 && (
+          <div className="space-y-8">
+            {groupKeys.map((type) => (
+              <div key={type}>
+                {/* Group heading */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-7 h-7 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
+                    <Building2 className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">{type}</h2>
+                  <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                    {grouped[type].length}
+                  </span>
+                  <div className="flex-1 h-px bg-slate-100" />
+                </div>
+
+                {/* Table */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  {/* Table header */}
+                  <div className="hidden sm:grid grid-cols-[48px_1fr_140px_100px_80px_120px] gap-4 px-5 py-3 border-b border-slate-100 bg-slate-50">
+                    <div />
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hotel</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Location</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Rooms</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Actions</span>
+                  </div>
+                  {grouped[type].map((hotel, i) => (
+                    <HotelRow key={getHotelId(hotel)} hotel={hotel} index={i} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Confirm Deactivate Hotel ── */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        title="Deactivate Hotel"
+        message={`Deactivate "${deleteTarget?.name || deleteTarget?.hotelName || 'this hotel'}"? It will be hidden from guests.`}
+        confirmLabel="Deactivate"
+        loading={loading}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => { setShowDeleteModal(false); setDeleteTarget(null); }}
+      />
     </div>
   );
 };

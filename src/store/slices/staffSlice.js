@@ -1,6 +1,24 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as api from '../../api/staff';
 
+/* ============================ MANAGER THUNK ============================ */
+
+// Create new hotel manager (uses /staff/hotel-managers/create endpoint)
+export const createManagerMember = createAsyncThunk(
+  'staff/createManagerMember',
+  async (managerData, { rejectWithValue }) => {
+    try {
+      console.log('🔄 Creating hotel manager:', managerData);
+      const response = await api.createManager(managerData);
+      console.log('✅ Hotel manager created:', response);
+      return response.hotelManager || response;
+    } catch (error) {
+      console.error('❌ Error creating manager:', error);
+      return rejectWithValue(error.response?.data?.message || 'Failed to create hotel manager');
+    }
+  }
+);
+
 /* ============================ STAFF THUNKS ============================ */
 
 // Fetch all staff for a hotel
@@ -63,6 +81,19 @@ export const deleteStaffMember = createAsyncThunk(
     } catch (error) {
       console.error('❌ Error deleting staff:', error);
       return rejectWithValue(error.response?.data?.message || 'Failed to delete staff member');
+    }
+  }
+);
+
+// Fetch staff filtered by role for a hotel
+export const fetchStaffByRole = createAsyncThunk(
+  'staff/fetchStaffByRole',
+  async ({ role, hotelId }, { rejectWithValue }) => {
+    try {
+      const response = await api.getStaffByRoleAndHotel(role, hotelId);
+      return Array.isArray(response) ? response : response.staff || [];
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch staff by role');
     }
   }
 );
@@ -134,6 +165,20 @@ const staffSlice = createSlice({
         state.error = action.payload;
       })
 
+      // ────────────── CREATE MANAGER MEMBER ──────────────
+      .addCase(createManagerMember.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createManagerMember.fulfilled, (state, action) => {
+        state.loading = false;
+        state.staff.push(action.payload);
+      })
+      .addCase(createManagerMember.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
       // ────────────── UPDATE STAFF MEMBER ──────────────
       .addCase(updateStaffMember.pending, (state) => {
         state.loading = true;
@@ -161,6 +206,20 @@ const staffSlice = createSlice({
         state.staff = state.staff.filter(s => s.id !== action.payload);
       })
       .addCase(deleteStaffMember.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // ────────────── FETCH STAFF BY ROLE ──────────────
+      .addCase(fetchStaffByRole.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchStaffByRole.fulfilled, (state, action) => {
+        state.loading = false;
+        state.staff = action.payload;
+      })
+      .addCase(fetchStaffByRole.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })

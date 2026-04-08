@@ -1,10 +1,8 @@
 import axios from "axios";
-import { BASE_URL } from "./baseUrl";
 
-// Cache buster: v1.1 - Added /api/owners/login to public endpoints
-
+// Axios instance configuration
 const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
   timeout: 15000,
   headers: {
     Accept: "application/json",
@@ -12,37 +10,40 @@ const api = axios.create({
   },
 });
 
+
+// In-memory token cache — avoids synchronous localStorage read on every request
+let _cachedToken = localStorage.getItem("accessToken");
+
+export const setTokenCache = (token) => { _cachedToken = token; };
+export const clearTokenCache = () => { _cachedToken = null; };
+
+const PUBLIC_ENDPOINTS = [
+  "/staff/login",
+  "/owners/login",
+  "/users/register",
+  "/users/forgot-password",
+  "/users/reset-password",
+  "/admin/partner-requests/submit",
+];
+
+// =========================
+// REQUEST INTERCEPTOR
+// =========================
 api.interceptors.request.use(
   (config) => {
+    // Remove Content-Type for GET & DELETE requests
     if (config.method === "get" || config.method === "delete") {
       delete config.headers["Content-Type"];
     }
 
-    const publicEndpoints = [
-      "/api/staff/login",
-      "/api/owners/login",
-      "/api/users/register",
-      "/api/users/forgot-password",
-      "/api/users/reset-password",
-    ];
-
-    const isPublicEndpoint = publicEndpoints.some((endpoint) =>
+    const isPublicEndpoint = PUBLIC_ENDPOINTS.some((endpoint) =>
       config.url?.includes(endpoint)
     );
 
-    console.log(`[AXIOS] URL: ${config.url}, Is Public: ${isPublicEndpoint}`);
-
-    if (isPublicEndpoint) {
-      console.log(`[AXIOS] ✅ Public endpoint - no token required`);
-      return config;
-    }
-
-    const accessToken = localStorage.getItem("accessToken");
-    if (accessToken) {
-      // CRITICAL FIX: Changed from X-AUTH-TOKEN to Authorization Bearer
-      config.headers["Authorization"] = `Bearer ${accessToken}`;
-    } else {
-      console.warn("⚠️ No access token found for protected route:", config.url);
+    if (!isPublicEndpoint) {
+      if (_cachedToken) {
+        config.headers.Authorization = `Bearer ${_cachedToken}`;
+      }
     }
 
     return config;
@@ -50,32 +51,52 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Prevents multiple simultaneous 401s from firing multiple logout events
+let _logoutHandled = false;
+
+const handleSessionExpired = () => {
+  if (_logoutHandled) return;
+  _logoutHandled = true;
+  clearTokenCache();
+  localStorage.clear();
+  window.dispatchEvent(new CustomEvent("auth:logout"));
+  // Reset after navigation so future sessions work
+  setTimeout(() => { _logoutHandled = false; }, 5000);
+};
+
+// =========================
+// RESPONSE INTERCEPTOR
+// =========================
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
     const url = error.config?.url || "";
 
-    // Check if this is a login/register endpoint
-    const isAuthEndpoint = [
-      "/api/staff/login",
-      "/api/owners/login",
-      "/api/users/register",
-      "/api/users/forgot-password",
-      "/api/users/reset-password",
-    ].some((endpoint) => url.includes(endpoint));
+    const authEndpoints = [
+      "/staff/login",
+      "/owners/login",
+      "/users/register",
+      "/users/forgot-password",
+      "/users/reset-password",
+    ];
+
+    const isAuthEndpoint = authEndpoints.some((endpoint) =>
+      url.includes(endpoint)
+    );
 
     if (status === 401) {
       if (isAuthEndpoint) {
-        // For login failures, log the actual error message from backend
-        console.error("🔒 Authentication failed:", error.response?.data?.message || "Invalid credentials");
+        console.error(
+          "🔒 Authentication failed:",
+          error.response?.data?.message || "Invalid credentials"
+        );
       } else {
-        // For protected routes, token is expired/invalid
-        console.error("🔒 Unauthorized: Token might be expired or invalid.");
-        // Optionally redirect to login
-        // window.location.href = '/login';
+        console.error("🔒 Unauthorized: Token expired or invalid.");
+        handleSessionExpired();
       }
     }
+
     return Promise.reject(error);
   }
 );

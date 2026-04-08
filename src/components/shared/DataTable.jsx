@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
@@ -28,11 +27,8 @@ export const DataTable = ({ columns, data, onRowClick, pageSize = 10 }) => {
           </thead>
           <tbody className="divide-y divide-slate-200">
             {currentData.map((row, rowIndex) => (
-              <motion.tr
-                key={rowIndex}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: rowIndex * 0.05 }}
+              <tr
+                key={row.bookingId || row.roomId || row.guestId || row.id || rowIndex}
                 onClick={() => onRowClick && onRowClick(row)}
                 className={`hover:bg-slate-50 transition-colors ${
                   onRowClick ? 'cursor-pointer' : ''
@@ -46,7 +42,7 @@ export const DataTable = ({ columns, data, onRowClick, pageSize = 10 }) => {
                     {column.render ? column.render(row) : row[column.accessor]}
                   </td>
                 ))}
-              </motion.tr>
+              </tr>
             ))}
           </tbody>
         </table>

@@ -1,4 +1,29 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { fetchInvoices, fetchPayments } from '../../api/financials';
+
+export const loadInvoices = createAsyncThunk(
+  'financials/loadInvoices',
+  async (filters, { rejectWithValue }) => {
+    try {
+      const res = await fetchInvoices(filters);
+      return res?.invoices || [];
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to load invoices');
+    }
+  }
+);
+
+export const loadPayments = createAsyncThunk(
+  'financials/loadPayments',
+  async (_, { rejectWithValue }) => {
+    try {
+      const res = await fetchPayments();
+      return res?.payments || [];
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to load payments');
+    }
+  }
+);
 
 const initialState = {
   invoices: [],
@@ -28,6 +53,33 @@ const financialSlice = createSlice({
       state.error = action.payload;
       state.loading = false;
     },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(loadInvoices.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(loadInvoices.fulfilled, (state, action) => {
+        state.loading = false;
+        state.invoices = action.payload;
+      })
+      .addCase(loadInvoices.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      .addCase(loadPayments.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(loadPayments.fulfilled, (state, action) => {
+        state.loading = false;
+        state.payments = action.payload;
+      })
+      .addCase(loadPayments.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
   },
 });
 

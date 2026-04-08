@@ -3,6 +3,15 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
+// Strips WWW-Authenticate header so the browser never shows the native Basic Auth popup
+const stripWWWAuthenticate = (proxy) => {
+  proxy.on('proxyRes', (proxyRes) => {
+    delete proxyRes.headers['www-authenticate'];
+  });
+};
+
+ const BACKEND = 'https://desiney.berymo.com';
+//const BACKEND = 'http://localhost:8080';
 export default defineConfig({
   plugins: [react()],
 
@@ -13,77 +22,89 @@ export default defineConfig({
   },
 
   server: {
-    port: 5173,           // ← changed to standard Vite port (optional but cleaner)
-
     proxy: {
       // ───────────────────────────────────────────────
       // IMPORTANT: Specific routes MUST come before generic fallback
-      // Most important: Authentication & staff endpoints on port 8083
       // ───────────────────────────────────────────────
       '/api/owners': {
-        target: 'http://localhost:8083',
+        target: 'http://localhost:8083',  // auth service — owner data lives here
+        // target: BACKEND,
         changeOrigin: true,
         secure: false,
+        configure: stripWWWAuthenticate,
       },
 
       '/api/staff': {
-        target: 'http://localhost:8083',
+        target: 'http://localhost:8083',  // auth service
+        // target: BACKEND,
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path, // keeps /api/staff/...
+        configure: stripWWWAuthenticate,
       },
 
       '/api/users': {
-        target: 'http://localhost:8083', // or 8080 — adjust based on where /users/register lives
-        changeOrigin: true,
-        secure: false,
-      },
-
-      // ───────────────────────────────────────────────
-      // Other specific prefixes (keep or adjust ports)
-      // ───────────────────────────────────────────────
-      '/api/partneredhotel': {
+        // target: BACKEND,
         target: 'http://localhost:8084',
         changeOrigin: true,
         secure: false,
+        configure: stripWWWAuthenticate,
+      },
+
+      '/api/partneredhotel': {
+        // target: BACKEND,
+        target: 'http://localhost:8084',
+        changeOrigin: true,
+        secure: false,
+        configure: stripWWWAuthenticate,
       },
 
       '/api/hotels': {
+        // target: BACKEND,
         target: 'http://localhost:8084',
         changeOrigin: true,
         secure: false,
+        configure: stripWWWAuthenticate,
       },
 
       '/api/bookings': {
+        // target: BACKEND,
         target: 'http://localhost:8084',
         changeOrigin: true,
         secure: false,
+        configure: stripWWWAuthenticate,
       },
 
-      '/partneredhotel': {   // non-api version if frontend ever calls it this way
+      '/partneredhotel': {
+        // target: BACKEND,
         target: 'http://localhost:8084',
         changeOrigin: true,
         secure: false,
+        configure: stripWWWAuthenticate,
       },
 
       '/users/admin': {
-        target: 'http://localhost:8082',
+        // target: BACKEND,
+        target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
+        configure: stripWWWAuthenticate,
       },
 
-      // If you have /auth endpoints (some apps use /auth/login instead of /api/...)
       '/auth': {
-        target: 'http://localhost:8083', // ← adjust to correct auth server
+        // target: BACKEND,
+        target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
+        configure: stripWWWAuthenticate,
       },
 
       // Generic fallback for anything else under /api (MUST be last)
       '/api': {
-        target: 'http://localhost:8080', // or 8083 — choose the most common one
+        // target: BACKEND,
+        target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
+        configure: stripWWWAuthenticate,
       },
     },
   },

@@ -8,9 +8,7 @@ export const fetchHotelBookings = createAsyncThunk(
   'bookings/fetchHotelBookings',
   async ({ hotelId, filters }, { rejectWithValue }) => {
     try {
-      console.log('🔄 Fetching bookings for hotel:', hotelId, 'Filters:', filters);
       const response = await api.getHotelBookings(hotelId, filters);
-      console.log('✅ Bookings fetched:', response);
       // Handle both array response and object with bookings property
       const bookingsData = Array.isArray(response) ? response : response.bookings || [];
       return bookingsData;
@@ -26,9 +24,7 @@ export const fetchBookingById = createAsyncThunk(
   'bookings/fetchBookingById',
   async (bookingId, { rejectWithValue }) => {
     try {
-      console.log('🔄 Fetching booking:', bookingId);
       const response = await api.getBookingById(bookingId);
-      console.log('✅ Booking fetched:', response);
       return response;
     } catch (error) {
       console.error('❌ Error fetching booking:', error);
@@ -42,9 +38,7 @@ export const fetchTodayCheckIns = createAsyncThunk(
   'bookings/fetchTodayCheckIns',
   async (hotelId, { rejectWithValue }) => {
     try {
-      console.log('🔄 Fetching today check-ins for hotel:', hotelId);
       const response = await api.getTodayCheckIns(hotelId);
-      console.log('✅ Today check-ins fetched:', response);
       return Array.isArray(response) ? response : [];
     } catch (error) {
       console.error('❌ Error fetching today check-ins:', error);
@@ -60,9 +54,7 @@ export const fetchTodayCheckOuts = createAsyncThunk(
   'bookings/fetchTodayCheckOuts',
   async (hotelId, { rejectWithValue }) => {
     try {
-      console.log('🔄 Fetching today check-outs for hotel:', hotelId);
       const response = await api.getTodayCheckOuts(hotelId);
-      console.log('✅ Today check-outs fetched:', response);
       return Array.isArray(response) ? response : [];
     } catch (error) {
       console.error('❌ Error fetching today check-outs:', error);
@@ -78,9 +70,7 @@ export const checkIn = createAsyncThunk(
   'bookings/checkIn',
   async (bookingId, { rejectWithValue }) => {
     try {
-      console.log('🔄 Checking in booking:', bookingId);
       const response = await api.checkInBooking(bookingId);
-      console.log('✅ Booking checked in:', response);
       return response;
     } catch (error) {
       console.error('❌ Error checking in:', error);
@@ -94,9 +84,7 @@ export const checkOut = createAsyncThunk(
   'bookings/checkOut',
   async (bookingId, { rejectWithValue }) => {
     try {
-      console.log('🔄 Checking out booking:', bookingId);
       const response = await api.checkOutBooking(bookingId);
-      console.log('✅ Booking checked out:', response);
       return response;
     } catch (error) {
       console.error('❌ Error checking out:', error);
@@ -110,9 +98,7 @@ export const cancelBooking = createAsyncThunk(
   'bookings/cancelBooking',
   async (bookingId, { rejectWithValue }) => {
     try {
-      console.log('🔄 Cancelling booking:', bookingId);
       const response = await api.cancelBooking(bookingId);
-      console.log('✅ Booking cancelled:', response);
       return response;
     } catch (error) {
       console.error('❌ Error cancelling booking:', error);
@@ -126,9 +112,7 @@ export const fetchBookingSummary = createAsyncThunk(
   'bookings/fetchBookingSummary',
   async (hotelId, { rejectWithValue }) => {
     try {
-      console.log('🔄 Fetching booking summary for hotel:', hotelId);
       const response = await api.getBookingSummary(hotelId);
-      console.log('✅ Booking summary fetched:', response);
       return response;
     } catch (error) {
       console.error('❌ Error fetching booking summary:', error);
@@ -142,9 +126,7 @@ export const processPayment = createAsyncThunk(
   'bookings/processPayment',
   async (bookingId, { rejectWithValue }) => {
     try {
-      console.log('🔄 Processing payment for booking:', bookingId);
       const response = await api.processPayment(bookingId);
-      console.log('✅ Payment processed:', response);
       return response;
     } catch (error) {
       console.error('❌ Error processing payment:', error);
@@ -158,9 +140,7 @@ export const fetchHotelRevenue = createAsyncThunk(
   'bookings/fetchHotelRevenue',
   async ({ hotelId, fromDate, toDate }, { rejectWithValue }) => {
     try {
-      console.log('🔄 Fetching revenue for hotel:', hotelId, fromDate, 'to', toDate);
       const response = await api.getHotelRevenue(hotelId, fromDate, toDate);
-      console.log('✅ Revenue fetched:', response);
       return response;
     } catch (error) {
       console.error('❌ Error fetching revenue:', error);
@@ -169,6 +149,22 @@ export const fetchHotelRevenue = createAsyncThunk(
   }
 );
 
+
+// Fetch booking payment details
+export const fetchBookingPaymentDetails = createAsyncThunk(
+  'bookings/fetchBookingPaymentDetails',
+  async (bookingId, { rejectWithValue }) => {
+    try {
+      const response = await api.getBookingPaymentDetails(bookingId);
+      return response;
+    } catch (error) {
+      console.error('❌ Error fetching payment details:', error);
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch payment details');
+    }
+  }
+);
+
+
 /* ============================ SLICE ============================ */
 
 const initialState = {
@@ -176,9 +172,13 @@ const initialState = {
   todayCheckIns: [],
   todayCheckOuts: [],
   selectedBooking: null,
+  paymentDetails: null,
   summary: null,
   revenue: null,
   loading: false,
+  checkInLoading: false,
+  checkOutLoading: false,
+  cancelLoading: false,
   error: null,
 };
 
@@ -188,6 +188,12 @@ const bookingSlice = createSlice({
   reducers: {
     setBookings: (state, action) => {
       state.bookings = action.payload;
+    },
+    setSelectedBooking: (state, action) => {
+      state.selectedBooking = action.payload;
+    },
+    clearPaymentDetails: (state) => {
+      state.paymentDetails = null;
     },
     clearBookingError: (state) => {
       state.error = null;
@@ -233,7 +239,11 @@ const bookingSlice = createSlice({
       })
 
       // ────────────── CHECK-IN ──────────────
+      .addCase(checkIn.pending, (state) => {
+        state.checkInLoading = true;
+      })
       .addCase(checkIn.fulfilled, (state, action) => {
+        state.checkInLoading = false;
         // Update booking in list
         const index = state.bookings.findIndex(b => b.bookingId === action.payload.bookingId);
         if (index !== -1) {
@@ -242,9 +252,17 @@ const bookingSlice = createSlice({
         // Remove from todayCheckIns
         state.todayCheckIns = state.todayCheckIns.filter(b => b.bookingId !== action.payload.bookingId);
       })
+      .addCase(checkIn.rejected, (state, action) => {
+        state.checkInLoading = false;
+        state.error = action.payload;
+      })
 
       // ────────────── CHECK-OUT ──────────────
+      .addCase(checkOut.pending, (state) => {
+        state.checkOutLoading = true;
+      })
       .addCase(checkOut.fulfilled, (state, action) => {
+        state.checkOutLoading = false;
         // Update booking in list
         const index = state.bookings.findIndex(b => b.bookingId === action.payload.bookingId);
         if (index !== -1) {
@@ -253,14 +271,26 @@ const bookingSlice = createSlice({
         // Remove from todayCheckOuts
         state.todayCheckOuts = state.todayCheckOuts.filter(b => b.bookingId !== action.payload.bookingId);
       })
+      .addCase(checkOut.rejected, (state, action) => {
+        state.checkOutLoading = false;
+        state.error = action.payload;
+      })
 
       // ────────────── CANCEL BOOKING ──────────────
+      .addCase(cancelBooking.pending, (state) => {
+        state.cancelLoading = true;
+      })
       .addCase(cancelBooking.fulfilled, (state, action) => {
+        state.cancelLoading = false;
         // Update booking in list
         const index = state.bookings.findIndex(b => b.bookingId === action.payload.bookingId);
         if (index !== -1) {
           state.bookings[index] = { ...state.bookings[index], ...action.payload };
         }
+      })
+      .addCase(cancelBooking.rejected, (state, action) => {
+        state.cancelLoading = false;
+        state.error = action.payload;
       })
 
       // ────────────── FETCH BOOKING SUMMARY ──────────────
@@ -280,18 +310,30 @@ const bookingSlice = createSlice({
       // ────────────── FETCH REVENUE ──────────────
       .addCase(fetchHotelRevenue.fulfilled, (state, action) => {
         state.revenue = action.payload;
+      })
+
+      // ────────────── FETCH PAYMENT DETAILS ──────────────
+      .addCase(fetchBookingPaymentDetails.fulfilled, (state, action) => {
+        state.paymentDetails = action.payload;
       });
   },
 });
 
-export const { setBookings, clearBookingError, clearBookings } = bookingSlice.actions;
+export const { setBookings, setSelectedBooking, clearPaymentDetails, clearBookingError, clearBookings } = bookingSlice.actions;
 export default bookingSlice.reducer;
 
 // Selectors
 export const selectBookings = (state) => state.bookings.bookings;
 export const selectTodayCheckIns = (state) => state.bookings.todayCheckIns;
 export const selectTodayCheckOuts = (state) => state.bookings.todayCheckOuts;
+export const selectSelectedBooking = (state) => state.bookings.selectedBooking;
+export const selectPaymentDetails = (state) => state.bookings.paymentDetails;
 export const selectBookingSummary = (state) => state.bookings.summary;
 export const selectRevenue = (state) => state.bookings.revenue;
+export const selectPaymentsTotal = (state) =>
+  state.bookings.bookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
 export const selectBookingsLoading = (state) => state.bookings.loading;
+export const selectCheckInLoading = (state) => state.bookings.checkInLoading;
+export const selectCheckOutLoading = (state) => state.bookings.checkOutLoading;
+export const selectCancelLoading = (state) => state.bookings.cancelLoading;
 export const selectBookingsError = (state) => state.bookings.error;

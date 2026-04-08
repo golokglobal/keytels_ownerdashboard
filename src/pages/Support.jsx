@@ -3,27 +3,16 @@ import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import { Plus, AlertCircle } from 'lucide-react';
 import { DataTable } from '../components/shared/DataTable';
-import { Loader } from '../components/common/Loader';
-import { setTickets, setLoading } from '../store/slices/supportSlice';
-import { fetchTickets } from '../api/support';
+import { SupportSkeleton } from '../components/common/Skeleton';
+import { loadTickets } from '../store/slices/supportSlice';
 
 export const Support = () => {
   const dispatch = useDispatch();
   const { tickets, loading } = useSelector((state) => state.support);
 
   useEffect(() => {
-    loadTickets();
+    dispatch(loadTickets());
   }, []);
-
-  const loadTickets = async () => {
-    dispatch(setLoading(true));
-    try {
-      const response = await fetchTickets();
-      dispatch(setTickets(response.tickets));
-    } catch (error) {
-      console.error('Failed to load tickets:', error);
-    }
-  };
 
   const columns = [
     { header: 'Ticket ID', accessor: 'id' },
@@ -67,7 +56,7 @@ export const Support = () => {
   ];
 
   if (loading) {
-    return <Loader fullScreen />;
+    return <SupportSkeleton />;
   }
 
   const stats = [

@@ -1,4 +1,17 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { fetchTickets } from '../../api/support';
+
+export const loadTickets = createAsyncThunk(
+  'support/loadTickets',
+  async (filters, { rejectWithValue }) => {
+    try {
+      const response = await fetchTickets(filters);
+      return response?.tickets || [];
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to load tickets');
+    }
+  }
+);
 
 const initialState = {
   tickets: [],
@@ -34,6 +47,21 @@ const supportSlice = createSlice({
       state.error = action.payload;
       state.loading = false;
     },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(loadTickets.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(loadTickets.fulfilled, (state, action) => {
+        state.loading = false;
+        state.tickets = action.payload;
+      })
+      .addCase(loadTickets.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
   },
 });
 

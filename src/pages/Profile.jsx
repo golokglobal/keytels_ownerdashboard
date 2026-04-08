@@ -7,8 +7,14 @@ import {
   changePassword,
   uploadProfilePhoto,
   clearError,
+  fetchOwnerWallet,
+  selectWallet,
+  selectWalletLoading,
+  selectWalletError,
 } from "../store/slices/userSlice";
-import { X, Save, Key, Camera, User, Mail, Phone, Lock, Check, AlertCircle, UploadCloud } from 'lucide-react';
+import { X, Save, Key, User, Mail, Phone, Lock, Check, AlertCircle, Wallet, ArrowUpRight, ArrowDownLeft, RefreshCw } from 'lucide-react';
+import { S3ImageUpload } from '../components/shared/S3ImageUpload';
+import { uploadUserPhotoFile } from '../api/s3Upload';
 
 // Simple toast utility (replace with your preferred toast library)
 const toast = {
@@ -21,6 +27,9 @@ const Profile = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user, loading, error, isAuthenticated } = useSelector((state) => state.user);
+  const walletData = useSelector(selectWallet);
+  const walletLoading = useSelector(selectWalletLoading);
+  const walletError = useSelector(selectWalletError);
 
   const [activeTab, setActiveTab] = useState('profile');
   const [profileForm, setProfileForm] = useState({
@@ -40,6 +49,16 @@ const Profile = () => {
 
   const [photoUrl, setPhotoUrl] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const fetchWalletData = () => {
+    dispatch(fetchOwnerWallet());
+  };
+
+  useEffect(() => {
+    if (activeTab === 'wallet') {
+      dispatch(fetchOwnerWallet());
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (user) {
@@ -63,49 +82,6 @@ const Profile = () => {
     setPasswordError(null);
     if (error) dispatch(clearError());
     setProfileSuccess(null);
-  };
-
-  const handlePhotoUrlChange = (e) => {
-    setPhotoUrl(e.target.value);
-    if (error) dispatch(clearError());
-    setProfileSuccess(null);
-  };
-
-  const handleUpdatePhoto = async () => {
-    if (!photoUrl || !photoUrl.trim()) {
-      toast.warning("Please enter a valid photo URL");
-      return;
-    }
-
-    // Validate URL format
-    if (photoUrl.startsWith('data:')) {
-      toast.error("Base64 images are not supported. Please use an actual image URL (http:// or https://)");
-      return;
-    }
-
-    if (!photoUrl.startsWith('http://') && !photoUrl.startsWith('https://')) {
-      toast.warning("Please enter a valid URL starting with http:// or https://");
-      return;
-    }
-
-    setUploadingPhoto(true);
-    try {
-      const result = await dispatch(uploadProfilePhoto(photoUrl));
-
-      if (uploadProfilePhoto.fulfilled.match(result)) {
-        toast.success("Profile photo updated successfully!");
-        setProfileSuccess("Profile photo updated successfully!");
-      } else {
-        const errorMsg = result.payload || "Failed to update photo";
-        toast.error(errorMsg);
-        console.error("Photo update failed:", errorMsg);
-      }
-    } catch (err) {
-      console.error("❌ Photo update error:", err);
-      toast.error("Failed to update photo. Please try again.");
-    } finally {
-      setUploadingPhoto(false);
-    }
   };
 
   const handleSaveProfile = async () => {
@@ -359,6 +335,15 @@ const Profile = () => {
             <Key size={20} />
             Security
           </button>
+          <button
+            onClick={() => setActiveTab('wallet')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
+              activeTab === 'wallet' ? 'tab-active' : 'tab-inactive'
+            }`}
+          >
+            <Wallet size={20} />
+            Wallet
+          </button>
         </div>
 
         {/* Content Card */}
@@ -382,36 +367,31 @@ const Profile = () => {
                 </h3>
                 <p className="text-slate-600 text-sm">{user.email}</p>
 
-                {/* Photo URL Input */}
+                {/* Photo Upload */}
                 <div className="w-full max-w-md mt-4">
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Profile Photo URL
+                    Profile Photo
                   </label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Camera size={18} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="url"
-                        value={photoUrl}
-                        onChange={handlePhotoUrlChange}
-                        className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 rounded-xl input-focus transition-all"
-                        placeholder="https://example.com/avatar.jpg"
-                        disabled={loading || uploadingPhoto}
-                      />
-                    </div>
-                    <button
-                      onClick={handleUpdatePhoto}
-                      className="px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl font-medium hover:from-purple-600 hover:to-purple-700 transition-all shadow-lg shadow-purple-500/30 flex items-center gap-2"
-                      disabled={loading || uploadingPhoto}
-                    >
-                      {uploadingPhoto && <div className="spinner-inline"></div>}
-                      <UploadCloud size={18} />
-                      {uploadingPhoto ? "Updating..." : "Update"}
-                    </button>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Enter an image URL (e.g., https://i.imgur.com/yourimage.jpg). Base64 images are not supported.
-                  </p>
+                  <S3ImageUpload
+                    label="Upload profile photo"
+                    accept="image/*"
+                    uploadFn={async (file) => {
+                      setUploadingPhoto(true);
+                      try {
+                        const url = await uploadUserPhotoFile(file);
+                        setPhotoUrl(url);
+                        // Sync the returned S3 URL to the backend profile record
+                        const result = await dispatch(uploadProfilePhoto(url));
+                        if (uploadProfilePhoto.fulfilled.match(result)) {
+                          setProfileSuccess("Profile photo updated successfully!");
+                        }
+                        return url;
+                      } finally {
+                        setUploadingPhoto(false);
+                      }
+                    }}
+                    onUploaded={() => {}}
+                  />
                 </div>
               </div>
 
@@ -509,7 +489,7 @@ const Profile = () => {
                 </button>
               </div>
             </div>
-          ) : (
+          ) : activeTab === 'password' ? (
             <div>
               <div className="mb-6">
                 <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl mb-8">
@@ -610,7 +590,92 @@ const Profile = () => {
                 </button>
               </div>
             </div>
-          )}
+          ) : activeTab === 'wallet' ? (
+            <div>
+              {/* Wallet Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-800">My Wallet</h3>
+                  <p className="text-sm text-slate-500 mt-1">View your balance and transaction history</p>
+                </div>
+                <button
+                  onClick={fetchWalletData}
+                  className="flex items-center gap-2 px-4 py-2 border-2 border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 transition-all"
+                  disabled={walletLoading}
+                >
+                  <RefreshCw size={16} className={walletLoading ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              </div>
+
+              {walletError && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-700">
+                  <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+                  <p className="text-sm">{walletError}</p>
+                </div>
+              )}
+
+              {walletLoading ? (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                  <div className="spinner-inline" style={{ width: 32, height: 32, borderWidth: 3, borderColor: 'rgba(148,163,184,0.3)', borderTopColor: '#3b82f6' }}></div>
+                  <p className="mt-4 text-sm">Loading wallet data...</p>
+                </div>
+              ) : walletData ? (
+                <div>
+                  {/* Balance Card */}
+                  <div className="rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 p-6 text-white mb-6 shadow-xl shadow-blue-500/30">
+                    <p className="text-sm text-blue-100 mb-1">Available Balance</p>
+                    <p className="text-4xl font-bold">
+                      {walletData.currency || '₹'}{typeof walletData.balance === 'number' ? walletData.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00'}
+                    </p>
+                    <p className="text-xs text-blue-200 mt-3">Last updated: {new Date().toLocaleDateString()}</p>
+                  </div>
+
+                  {/* Transactions */}
+                  <div>
+                    <h4 className="font-semibold text-slate-700 mb-4">Recent Transactions</h4>
+                    {walletData.transactions && walletData.transactions.length > 0 ? (
+                      <div className="space-y-3">
+                        {walletData.transactions.map((txn, idx) => (
+                          <div key={txn.id || idx} className="flex items-center gap-4 p-4 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
+                            <div className={`p-2 rounded-full ${txn.type === 'credit' ? 'bg-green-100' : 'bg-red-100'}`}>
+                              {txn.type === 'credit'
+                                ? <ArrowDownLeft size={18} className="text-green-600" />
+                                : <ArrowUpRight size={18} className="text-red-500" />
+                              }
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-slate-800 text-sm truncate">{txn.description || txn.type}</p>
+                              <p className="text-xs text-slate-500 mt-0.5">{txn.date ? new Date(txn.date).toLocaleDateString() : ''}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className={`font-semibold text-sm ${txn.type === 'credit' ? 'text-green-600' : 'text-red-500'}`}>
+                                {txn.type === 'credit' ? '+' : '-'}{walletData.currency || '₹'}{typeof txn.amount === 'number' ? txn.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : txn.amount}
+                              </p>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${txn.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                {txn.status || 'completed'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-10 text-slate-400">
+                        <Wallet size={40} className="mx-auto mb-3 opacity-30" />
+                        <p className="text-sm">No transactions yet</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-16 text-slate-400">
+                  <Wallet size={48} className="mx-auto mb-4 opacity-30" />
+                  <p className="font-medium text-slate-600">Wallet data unavailable</p>
+                  <p className="text-sm mt-1">Click refresh to try again</p>
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
 
         {/* Additional Info Card */}

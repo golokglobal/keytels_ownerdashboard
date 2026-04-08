@@ -9,6 +9,7 @@ import {
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, X, AlertCircle, CheckCircle } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 export const Update = () => {
   const { id } = useParams();
@@ -68,7 +69,7 @@ export const Update = () => {
   const handleAddRoomImage = () => roomImageInput.trim() && setRoomData(prev => ({ ...prev, images: [...prev.images, roomImageInput.trim()] })) && setRoomImageInput('');
   const handleRemoveRoomImage = (i) => setRoomData(prev => ({ ...prev, images: prev.images.filter((_, idx) => idx !== i) }));
   const handleAddRoom = () => {
-    if (!roomData.roomType || !roomData.capacity || !roomData.basePrice) return alert('Fill required fields');
+    if (!roomData.roomType || !roomData.capacity || !roomData.basePrice) { toast.error('Please fill all required room fields'); return; }
     setFormData(prev => ({
       ...prev,
       rooms: [...prev.rooms, { ...roomData, capacity: +roomData.capacity, basePrice: +roomData.basePrice }],

@@ -3,7 +3,7 @@ import { useDispatch } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Hotel, Mail, Lock, ArrowRight, Eye, EyeOff, Crown, Shield } from 'lucide-react';
-import { signinOwner } from '../../store/slices/authSlice';
+import { signinOwner } from '../../store/slices/userSlice';
 import { Loader } from '../../components/common/Loader';
 
 export const OwnerLogin = () => {
@@ -88,7 +88,7 @@ export const OwnerLogin = () => {
               <Crown className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
-              Desiney World
+              Keytels
             </h1>
           </div>
           <p className="text-slate-600 text-lg font-medium">Hotel Owner Portal</p>
