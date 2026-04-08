@@ -10,6 +10,7 @@ import {
   LogIn,
   LogOut,
 } from 'lucide-react';
+import { HotelSelector } from '../components/shared/HotelSelector';
 import { GuestsSkeleton } from '../components/common/Skeleton';
 import { loadGuests } from '../store/slices/guestSlice';
 import {
@@ -132,10 +133,13 @@ export const Guests = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Guests</h1>
-          <p className="text-slate-600">View guest profiles from bookings</p>
+          <h1 className="text-2xl font-bold text-slate-900">Guests</h1>
+          <p className="text-slate-500 text-sm mt-0.5">View guest profiles from bookings</p>
+          <div className="mt-2">
+            <HotelSelector />
+          </div>
         </div>
         {/* Search */}
         <div className="relative w-full sm:w-80">

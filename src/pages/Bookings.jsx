@@ -14,6 +14,7 @@ import {
   DollarSign,
   RefreshCw,
 } from 'lucide-react';
+import { HotelSelector } from '../components/shared/HotelSelector';
 import { DataTable } from '../components/shared/DataTable';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import { BookingsSkeleton } from '../components/common/Skeleton';
@@ -294,39 +295,36 @@ export const Bookings = () => {
     return <BookingsSkeleton />;
   }
 
-  if (!activeHotelId) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Bookings</h1>
-          <p className="text-slate-600">Manage all your hotel bookings</p>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-          <Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-slate-900 mb-2">Select a hotel</h3>
-          <p className="text-slate-600">Please select a hotel from the header to view its bookings</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Bookings</h1>
-          <p className="text-slate-600">Manage all your hotel bookings</p>
+          <h1 className="text-2xl font-bold text-slate-900">Inbox</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Manage reservations and booking actions</p>
+          <div className="mt-2">
+            <HotelSelector />
+          </div>
         </div>
         <button
           onClick={loadBookings}
           disabled={loading}
-          className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-all flex items-center gap-2 disabled:opacity-50"
+          className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-all flex items-center gap-2 disabled:opacity-50 shrink-0"
         >
-          <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
       </div>
+
+      {!activeHotelId && (
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+          <Calendar className="w-14 h-14 text-slate-200 mx-auto mb-3" />
+          <h3 className="text-base font-semibold text-slate-700 mb-1">No hotel selected</h3>
+          <p className="text-sm text-slate-500">Use the hotel selector above to view bookings for a property.</p>
+        </div>
+      )}
+
+      {activeHotelId && <>
 
       {/* Status Filter Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -715,6 +713,7 @@ export const Bookings = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      </>}
     </div>
   );
 };

@@ -10,6 +10,7 @@ import {
   deleteHotelRoom,
   fetchRoomImages,
   deleteRoomImage,
+  uploadRoomImage,
 } from "../store/slices/PartnerHotelslice";
 import { fetchRoomTypes, fetchBedTypes, selectRoomTypes, selectBedTypes } from "../store/slices/catalogSlice";
 import {
@@ -20,6 +21,7 @@ import {
 import { toast } from "react-hot-toast";
 import { ConfirmModal } from "../components/common/ConfirmModal";
 import { selectPrimaryHotelId } from "../store/slices/userSlice";
+import { S3ImageUpload } from "../components/shared/S3ImageUpload";
 
 /* ── Shared input class ── */
 const inputCls =
@@ -110,7 +112,7 @@ const RoomPanel = ({ hotel }) => {
   const [imageRoom, setImageRoom] = useState(null);
   const [confirmDelImg, setConfirmDelImg] = useState({ open: false, imageId: null });
 
-  const EMPTY = { roomType: "", bedType: "", description: "", capacity: "", pricePerNight: "", isAvailable: true, totalRooms: "1" };
+  const EMPTY = { roomType: "", bedType: "", description: "", capacity: "", pricePerNight: "", totalRooms: "1", isAvailable: true, cancellationPolicy: "" };
   const [roomForm, setRoomForm] = useState(EMPTY);
   const [formError, setFormError] = useState("");
 
@@ -142,8 +144,8 @@ const RoomPanel = ({ hotel }) => {
   /* ── Add Room ── */
   const handleAddRoom = async (e) => {
     e.preventDefault();
-    if (!roomForm.roomType || !roomForm.capacity || !roomForm.pricePerNight) {
-      setFormError("Room type, capacity and price are required.");
+    if (!roomForm.roomType || !roomForm.bedType || !roomForm.capacity || !roomForm.pricePerNight || !roomForm.totalRooms) {
+      setFormError("Room type, bed type, capacity, price and total units are required.");
       return;
     }
     try {
@@ -151,12 +153,13 @@ const RoomPanel = ({ hotel }) => {
         hotelId,
         data: {
           roomType: roomForm.roomType,
-          bedType: roomForm.bedType || "",
+          bedType: roomForm.bedType,
           description: roomForm.description || "",
           capacity: Number(roomForm.capacity),
+          totalRooms: Number(roomForm.totalRooms) || 1,
           pricePerNight: Number(roomForm.pricePerNight),
           isAvailable: roomForm.isAvailable,
-          totalRooms: Number(roomForm.totalRooms) || 1,
+          cancellationPolicy: roomForm.cancellationPolicy || "",
         },
       })).unwrap();
       toast.success("Room added!");
@@ -182,10 +185,11 @@ const RoomPanel = ({ hotel }) => {
           bedType: editRoom.bedType || "",
           description: editRoom.description || "",
           capacity: Number(editRoom.capacity),
+          totalRooms: Number(editRoom.totalRooms) || 1,
           pricePerNight: Number(editRoom.pricePerNight || editRoom.basePrice),
           isAvailable: editRoom.isAvailable ?? true,
-          totalRooms: Number(editRoom.totalRooms) || 1,
           status: editRoom.status || "ACTIVE",
+          cancellationPolicy: editRoom.cancellationPolicy || "",
         },
       })).unwrap();
       toast.success("Room updated!");
@@ -413,10 +417,10 @@ const RoomPanel = ({ hotel }) => {
                     placeholder="e.g. 180.00" className={inputCls} required />
                 </Field>
               </div>
-              <Field label="Bed Type">
+              <Field label="Bed Type *">
                 {bedTypes.length > 0 ? (
                   <select value={roomForm.bedType} onChange={(e) => setRoomForm((p) => ({ ...p, bedType: e.target.value }))}
-                    className={inputCls}>
+                    className={inputCls} required>
                     <option value="">Select bed type</option>
                     {bedTypes.map((bt) => (
                       <option key={bt.id} value={bt.name}>{bt.name}</option>
@@ -424,8 +428,13 @@ const RoomPanel = ({ hotel }) => {
                   </select>
                 ) : (
                   <input value={roomForm.bedType} onChange={(e) => setRoomForm((p) => ({ ...p, bedType: e.target.value }))}
-                    placeholder="e.g. King, Twin" className={inputCls} />
+                    placeholder="e.g. King, Twin" className={inputCls} required />
                 )}
+              </Field>
+              <Field label="Cancellation Policy">
+                <input value={roomForm.cancellationPolicy}
+                  onChange={(e) => setRoomForm((p) => ({ ...p, cancellationPolicy: e.target.value }))}
+                  placeholder="e.g. Free cancellation 48h before check-in" className={inputCls} />
               </Field>
               <Field label="Description">
                 <textarea value={roomForm.description}
@@ -506,6 +515,11 @@ const RoomPanel = ({ hotel }) => {
                     placeholder="e.g. King, Twin" className={inputCls} />
                 )}
               </Field>
+              <Field label="Cancellation Policy">
+                <input value={editRoom.cancellationPolicy || ""}
+                  onChange={(e) => setEditRoom((p) => ({ ...p, cancellationPolicy: e.target.value }))}
+                  placeholder="e.g. Free cancellation 48h before check-in" className={inputCls} />
+              </Field>
               <Field label="Description">
                 <textarea value={editRoom.description || ""}
                   onChange={(e) => setEditRoom((p) => ({ ...p, description: e.target.value }))}
@@ -542,12 +556,22 @@ const RoomPanel = ({ hotel }) => {
           <Modal title={`Images — ${imageRoom.roomType}`}
             onClose={() => { setShowImages(false); setImageRoom(null); }}>
             <div className="space-y-4">
-              {currentImages.length === 0 ? (
-                <div className="border-2 border-dashed border-slate-200 rounded-xl p-10 text-center">
-                  <ImageIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400">No images for this room yet</p>
-                </div>
-              ) : (
+              {/* Upload new image */}
+              <S3ImageUpload
+                label="Upload room photo"
+                uploadFn={async (file) => {
+                  const rid = imageRoom.roomId || imageRoom.id;
+                  const fd = new FormData();
+                  fd.append('image', file);
+                  const result = await dispatch(uploadRoomImage({ roomId: rid, formData: fd })).unwrap();
+                  dispatch(fetchRoomImages(rid));
+                  return result?.imageUrl || result?.url || '';
+                }}
+                onUploaded={() => {}}
+              />
+
+              {/* Existing images */}
+              {currentImages.length > 0 && (
                 <div className="grid grid-cols-2 gap-3">
                   {currentImages.map((img) => {
                     const imgId = img.imageId || img.id;
@@ -563,9 +587,6 @@ const RoomPanel = ({ hotel }) => {
                   })}
                 </div>
               )}
-              <p className="text-xs text-slate-400 text-center">
-                To add images, use the room edit form or your hotel management system.
-              </p>
             </div>
           </Modal>
         )}

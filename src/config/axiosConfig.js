@@ -23,6 +23,7 @@ const PUBLIC_ENDPOINTS = [
   "/users/register",
   "/users/forgot-password",
   "/users/reset-password",
+  "/admin/partner-requests/submit",
 ];
 
 // =========================

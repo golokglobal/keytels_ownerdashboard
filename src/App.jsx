@@ -6,6 +6,7 @@ import { PrivateRoute } from './components/Layout/PrivateRoute';
 import { BillingGate } from './components/Layout/BillingGate';
 import { Loader } from './components/common/Loader';
 import { restoreUser } from './store/slices/userSlice';
+import { Landing } from './pages/Landing';
 
 // Auth pages — small, load eagerly
 import { Login } from './pages/Auth/Login';
@@ -26,12 +27,15 @@ const HotelList      = lazy(() => import('./pages/HotelList').then(m => ({ defau
 const Staff          = lazy(() => import('./pages/Staff').then(m => ({ default: m.Staff })));
 const Profile        = lazy(() => import('./pages/Profile'));
 const CheckinsOuts   = lazy(() => import('./pages/CheckinsOuts').then(m => ({ default: m.CheckinsOuts })));
+const CatalogManagement = lazy(() => import('./pages/CatalogManagement').then(m => ({ default: m.CatalogManagement })));
+const HotelDetail       = lazy(() => import('./pages/HotelDetail').then(m => ({ default: m.HotelDetail })));
+const Marketing         = lazy(() => import('./pages/Marketing').then(m => ({ default: m.Marketing })));
 
 /* Listens for auth:logout events fired by the axios interceptor */
 function AuthLogoutListener() {
   const navigate = useNavigate();
   useEffect(() => {
-    const handler = () => navigate('/login', { replace: true });
+    const handler = () => navigate('/', { replace: true });
     window.addEventListener('auth:logout', handler);
     return () => window.removeEventListener('auth:logout', handler);
   }, [navigate]);
@@ -50,14 +54,14 @@ function App() {
       <AuthLogoutListener />
       <Suspense fallback={<Loader fullScreen />}>
         <Routes>
-          {/* Public Routes */}
+          {/* Public — always accessible */}
+          <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/owner-login" element={<OwnerLogin />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
-          {/* Protected Routes */}
+          {/* Protected — authenticated partners only */}
           <Route
-            path="/"
             element={
               <PrivateRoute>
                 <BillingGate>
@@ -66,7 +70,6 @@ function App() {
               </PrivateRoute>
             }
           >
-            <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="bookings" element={<Bookings />} />
             <Route path="rooms" element={<RoomsManagement />} />
@@ -82,10 +85,13 @@ function App() {
             <Route path="staff" element={<Staff />} />
             <Route path="checkins-outs" element={<CheckinsOuts />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="catalog" element={<CatalogManagement />} />
+            <Route path="hotels/:hotelId" element={<HotelDetail />} />
+            <Route path="marketing" element={<Marketing />} />
           </Route>
 
-          <Route path="/register" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/register" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

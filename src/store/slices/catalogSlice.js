@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import * as api from "../../api/catalogApi";
 
+/* ── Fetch thunks ── */
 export const fetchPropertyTypes = createAsyncThunk(
   "catalog/fetchPropertyTypes",
   async (_, { rejectWithValue }) => {
@@ -34,6 +35,51 @@ export const fetchBedTypes = createAsyncThunk(
   }
 );
 
+/* ── Create thunks (Admin) ──
+   POST /partneredhotel/catalog/property-types  body: { name }
+   POST /partneredhotel/catalog/room-types      body: { name }
+   POST /partneredhotel/catalog/bed-types       body: { name }
+   Response 201: { id, name, status, createdAt, updatedAt }
+*/
+export const createPropertyType = createAsyncThunk(
+  "catalog/createPropertyType",
+  async (data, { rejectWithValue }) => {
+    try {
+      return await api.createPropertyType(data);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || error.response?.data?.error || "Failed to create property type"
+      );
+    }
+  }
+);
+
+export const createRoomType = createAsyncThunk(
+  "catalog/createRoomType",
+  async (data, { rejectWithValue }) => {
+    try {
+      return await api.createRoomType(data);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || error.response?.data?.error || "Failed to create room type"
+      );
+    }
+  }
+);
+
+export const createBedType = createAsyncThunk(
+  "catalog/createBedType",
+  async (data, { rejectWithValue }) => {
+    try {
+      return await api.createBedType(data);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || error.response?.data?.error || "Failed to create bed type"
+      );
+    }
+  }
+);
+
 const catalogSlice = createSlice({
   name: "catalog",
   initialState: {
@@ -46,6 +92,7 @@ const catalogSlice = createSlice({
   reducers: {},
   extraReducers: (builder) => {
     builder
+      /* fetch */
       .addCase(fetchPropertyTypes.fulfilled, (state, action) => {
         state.propertyTypes = Array.isArray(action.payload) ? action.payload : [];
       })
@@ -54,6 +101,16 @@ const catalogSlice = createSlice({
       })
       .addCase(fetchBedTypes.fulfilled, (state, action) => {
         state.bedTypes = Array.isArray(action.payload) ? action.payload : [];
+      })
+      /* create — append new item returned by API */
+      .addCase(createPropertyType.fulfilled, (state, action) => {
+        state.propertyTypes.push(action.payload);
+      })
+      .addCase(createRoomType.fulfilled, (state, action) => {
+        state.roomTypes.push(action.payload);
+      })
+      .addCase(createBedType.fulfilled, (state, action) => {
+        state.bedTypes.push(action.payload);
       })
       .addMatcher(
         (action) => action.type.startsWith("catalog/") && action.type.endsWith("/pending"),

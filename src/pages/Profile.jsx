@@ -12,7 +12,9 @@ import {
   selectWalletLoading,
   selectWalletError,
 } from "../store/slices/userSlice";
-import { X, Save, Key, Camera, User, Mail, Phone, Lock, Check, AlertCircle, UploadCloud, Wallet, ArrowUpRight, ArrowDownLeft, RefreshCw } from 'lucide-react';
+import { X, Save, Key, User, Mail, Phone, Lock, Check, AlertCircle, Wallet, ArrowUpRight, ArrowDownLeft, RefreshCw } from 'lucide-react';
+import { S3ImageUpload } from '../components/shared/S3ImageUpload';
+import { uploadUserPhotoFile } from '../api/s3Upload';
 
 // Simple toast utility (replace with your preferred toast library)
 const toast = {
@@ -80,49 +82,6 @@ const Profile = () => {
     setPasswordError(null);
     if (error) dispatch(clearError());
     setProfileSuccess(null);
-  };
-
-  const handlePhotoUrlChange = (e) => {
-    setPhotoUrl(e.target.value);
-    if (error) dispatch(clearError());
-    setProfileSuccess(null);
-  };
-
-  const handleUpdatePhoto = async () => {
-    if (!photoUrl || !photoUrl.trim()) {
-      toast.warning("Please enter a valid photo URL");
-      return;
-    }
-
-    // Validate URL format
-    if (photoUrl.startsWith('data:')) {
-      toast.error("Base64 images are not supported. Please use an actual image URL (http:// or https://)");
-      return;
-    }
-
-    if (!photoUrl.startsWith('http://') && !photoUrl.startsWith('https://')) {
-      toast.warning("Please enter a valid URL starting with http:// or https://");
-      return;
-    }
-
-    setUploadingPhoto(true);
-    try {
-      const result = await dispatch(uploadProfilePhoto(photoUrl));
-
-      if (uploadProfilePhoto.fulfilled.match(result)) {
-        toast.success("Profile photo updated successfully!");
-        setProfileSuccess("Profile photo updated successfully!");
-      } else {
-        const errorMsg = result.payload || "Failed to update photo";
-        toast.error(errorMsg);
-        console.error("Photo update failed:", errorMsg);
-      }
-    } catch (err) {
-      console.error("❌ Photo update error:", err);
-      toast.error("Failed to update photo. Please try again.");
-    } finally {
-      setUploadingPhoto(false);
-    }
   };
 
   const handleSaveProfile = async () => {
@@ -408,36 +367,31 @@ const Profile = () => {
                 </h3>
                 <p className="text-slate-600 text-sm">{user.email}</p>
 
-                {/* Photo URL Input */}
+                {/* Photo Upload */}
                 <div className="w-full max-w-md mt-4">
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Profile Photo URL
+                    Profile Photo
                   </label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Camera size={18} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="url"
-                        value={photoUrl}
-                        onChange={handlePhotoUrlChange}
-                        className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 rounded-xl input-focus transition-all"
-                        placeholder="https://example.com/avatar.jpg"
-                        disabled={loading || uploadingPhoto}
-                      />
-                    </div>
-                    <button
-                      onClick={handleUpdatePhoto}
-                      className="px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl font-medium hover:from-purple-600 hover:to-purple-700 transition-all shadow-lg shadow-purple-500/30 flex items-center gap-2"
-                      disabled={loading || uploadingPhoto}
-                    >
-                      {uploadingPhoto && <div className="spinner-inline"></div>}
-                      <UploadCloud size={18} />
-                      {uploadingPhoto ? "Updating..." : "Update"}
-                    </button>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Enter an image URL (e.g., https://i.imgur.com/yourimage.jpg). Base64 images are not supported.
-                  </p>
+                  <S3ImageUpload
+                    label="Upload profile photo"
+                    accept="image/*"
+                    uploadFn={async (file) => {
+                      setUploadingPhoto(true);
+                      try {
+                        const url = await uploadUserPhotoFile(file);
+                        setPhotoUrl(url);
+                        // Sync the returned S3 URL to the backend profile record
+                        const result = await dispatch(uploadProfilePhoto(url));
+                        if (uploadProfilePhoto.fulfilled.match(result)) {
+                          setProfileSuccess("Profile photo updated successfully!");
+                        }
+                        return url;
+                      } finally {
+                        setUploadingPhoto(false);
+                      }
+                    }}
+                    onUploaded={() => {}}
+                  />
                 </div>
               </div>
 

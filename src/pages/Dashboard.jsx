@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
+import { HotelSelector } from '../components/shared/HotelSelector';
 import { StatCard } from '../components/shared/StatCard';
 import { DataTable } from '../components/shared/DataTable';
 import { DashboardSkeleton } from '../components/common/Skeleton';
@@ -148,29 +149,16 @@ export const Dashboard = () => {
     return <DashboardSkeleton />;
   }
 
-  if (!activeHotelId) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Dashboard Overview</h1>
-          <p className="text-slate-600">Welcome back! Here's what's happening with your hotel today.</p>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-          <AlertCircle className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-slate-900 mb-2">Select a hotel</h3>
-          <p className="text-slate-600">Choose a hotel from the header to view your dashboard.</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Dashboard Overview</h1>
-          <p className="text-slate-600">Welcome back! Here's what's happening with your hotel today.</p>
+          <h1 className="text-2xl font-bold text-slate-900">Dashboard Overview</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Here's what's happening with your hotel today.</p>
+          <div className="mt-2">
+            <HotelSelector />
+          </div>
         </div>
         <button onClick={() => activeHotelId && loadData(activeHotelId)}
           disabled={loading || !activeHotelId}
@@ -179,8 +167,16 @@ export const Dashboard = () => {
         </button>
       </div>
 
+      {!activeHotelId && (
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+          <AlertCircle className="w-14 h-14 text-slate-200 mx-auto mb-3" />
+          <h3 className="text-base font-semibold text-slate-700 mb-1">No hotel selected</h3>
+          <p className="text-sm text-slate-500">Select a property above to load your dashboard data.</p>
+        </div>
+      )}
+
       {/* Today's quick-action bar */}
-      {(todayCheckIns?.length > 0 || todayCheckOuts?.length > 0 || bookingSummary?.booked > 0) && (
+      {activeHotelId && (todayCheckIns?.length > 0 || todayCheckOuts?.length > 0 || bookingSummary?.booked > 0) && (
         <div className="flex flex-wrap gap-3 p-4 bg-[#1a1f36] rounded-xl text-white text-sm">
           <span className="font-semibold text-white/70 mr-1">Today:</span>
           {todayCheckIns?.length > 0 && (
@@ -204,6 +200,7 @@ export const Dashboard = () => {
         </div>
       )}
 
+      {activeHotelId && <>
       {/* Stats Grid - Using Real Booking Summary Data */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
@@ -548,6 +545,7 @@ export const Dashboard = () => {
           </div>
         </motion.div>
       )}
+      </>}
     </div>
   );
 };

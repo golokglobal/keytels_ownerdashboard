@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { LogIn, LogOut, RefreshCw, Calendar } from 'lucide-react';
+import { HotelSelector } from '../components/shared/HotelSelector';
 import { DataTable } from '../components/shared/DataTable';
 import { selectPrimaryHotelId } from '../store/slices/userSlice';
 import {
@@ -78,26 +79,29 @@ export const CheckinsOuts = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Today Check-ins & Check-outs</h1>
-          <p className="text-slate-600">Monitor arrivals and departures for the selected hotel</p>
+          <h1 className="text-2xl font-bold text-slate-900">Today's Arrivals & Departures</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Monitor check-ins and check-outs for the selected property</p>
+          <div className="mt-2">
+            <HotelSelector />
+          </div>
         </div>
         <button
           onClick={load}
           disabled={loading || !activeHotelId}
-          className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-all flex items-center gap-2 disabled:opacity-50"
+          className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-all flex items-center gap-2 disabled:opacity-50 shrink-0"
         >
-          <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
       </div>
 
       {!activeHotelId && (
         <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-          <Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-slate-900 mb-2">Select a hotel</h3>
-          <p className="text-slate-600">Choose a hotel from the header to view check-ins and check-outs.</p>
+          <Calendar className="w-14 h-14 text-slate-200 mx-auto mb-3" />
+          <h3 className="text-base font-semibold text-slate-700 mb-1">No hotel selected</h3>
+          <p className="text-sm text-slate-500">Select a property above to view today's check-ins and check-outs.</p>
         </div>
       )}
 

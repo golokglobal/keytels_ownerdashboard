@@ -7,6 +7,7 @@ import {
   AlertCircle, Clock, Zap, Shield, BarChart2, ExternalLink,
   Loader2,
 } from "lucide-react";
+import { HotelSelector } from "../components/shared/HotelSelector";
 import {
   fetchHotelRevenue,
   fetchBookingSummary,
@@ -251,8 +252,11 @@ export const Financials = () => {
     <div className="space-y-8">
       {/* ── Page Header ────────────────────────────────────────────────── */}
       <div>
-        <h1 className="text-3xl font-bold text-slate-900 mb-1">Financials & Billing</h1>
-        <p className="text-slate-500 text-sm">Manage your subscription, Stripe account, and hotel revenue</p>
+        <h1 className="text-2xl font-bold text-slate-900">Financials & Billing</h1>
+        <p className="text-slate-500 text-sm mt-0.5">Manage your subscription, Stripe account, and hotel revenue</p>
+        <div className="mt-2">
+          <HotelSelector />
+        </div>
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════

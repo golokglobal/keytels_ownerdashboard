@@ -1,25 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   fetchHotelById,
   fetchOwnerHotels,
   deleteHotel,
   clearHotelError,
   clearAllHotels,
-  fetchRoomsByHotel,
-  createHotelRoom,
-  updateHotelRoom,
-  deleteHotelRoom,
-  fetchRoomImages,
 } from '../store/slices/PartnerHotelslice';
 import { useNavigate } from 'react-router-dom';
 import {
-  Edit, Trash2, Plus, Building2, MapPin, BedDouble, Users,
-  DollarSign, CheckCircle, XCircle, Percent, Image as ImageIcon,
-  ChevronRight, Star, Wifi, Car, Dumbbell,
-  UtensilsCrossed, Sparkles, Coffee, Bath, RefreshCw,
-  X, Hash, Wrench,
+  Edit, Trash2, Plus, Building2, MapPin, BedDouble,
+  CheckCircle, XCircle, Percent, Image as ImageIcon,
+  ChevronRight,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { ConfirmModal } from '../components/common/ConfirmModal';
@@ -30,23 +23,6 @@ const getRoomId  = (r) => r?.roomId || r?.id || null;
 
 const inputCls =
   'w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100 transition-all bg-white';
-
-const AMENITY_ICONS = {
-  wifi: Wifi, parking: Car, gym: Dumbbell, restaurant: UtensilsCrossed,
-  spa: Sparkles, 'room-service': Coffee, pool: Bath, bar: Coffee,
-};
-const getAmenityIcon = (a) => AMENITY_ICONS[a?.toLowerCase()] || Star;
-
-const STATUS_ROOM = {
-  active:      { label: 'Active',       cls: 'bg-emerald-100 text-emerald-700 border-emerald-200', Icon: CheckCircle },
-  maintenance: { label: 'Maintenance',  cls: 'bg-amber-100  text-amber-700  border-amber-200',    Icon: Wrench      },
-  inactive:    { label: 'Inactive',     cls: 'bg-slate-100  text-slate-500  border-slate-200',    Icon: XCircle     },
-};
-const normalizeRoomStatus = (isAvailable, status) => {
-  if (status?.toLowerCase() === 'maintenance') return 'maintenance';
-  if (isAvailable === false) return 'inactive';
-  return 'active';
-};
 
 /* ── Tiny hotel thumbnail ── */
 const HotelThumb = ({ hotel }) => {
@@ -63,65 +39,6 @@ const HotelThumb = ({ hotel }) => {
   );
 };
 
-/* ── Room image (single) ── */
-const RoomThumb = ({ images = [] }) => {
-  const src = images[0]?.imageUrl || images[0]?.url || null;
-  return src ? (
-    <img src={src} alt="Room" className="w-full h-36 object-cover" onError={(e) => { e.target.style.display='none'; }} />
-  ) : (
-    <div className="w-full h-36 bg-gradient-to-br from-slate-100 to-slate-200 flex flex-col items-center justify-center">
-      <ImageIcon className="w-6 h-6 text-slate-300 mb-1" />
-      <span className="text-[10px] text-slate-400">No image</span>
-    </div>
-  );
-};
-
-/* ── Field wrapper ── */
-const Field = ({ label, children }) => (
-  <div className="space-y-1">
-    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</label>
-    {children}
-  </div>
-);
-
-/* ── Modal wrapper ── */
-const Modal = ({ title, onClose, children }) => (
-  <motion.div
-    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-    onClick={onClose}
-  >
-    <motion.div
-      initial={{ opacity: 0, scale: 0.92, y: 20 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.92, y: 20 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-      className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
-        <h3 className="font-bold text-slate-900">{title}</h3>
-        <button type="button" onClick={onClose} className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-      <div className="p-6">{children}</div>
-    </motion.div>
-  </motion.div>
-);
-
-const ModalFooter = ({ onCancel, label, loading }) => (
-  <div className="flex gap-3 pt-2">
-    <button type="button" onClick={onCancel}
-      className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
-      Cancel
-    </button>
-    <button type="submit" disabled={loading}
-      className="flex-1 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-      {loading ? <><div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" /> Saving…</> : label}
-    </button>
-  </div>
-);
 
 /* ══════════════════════════════════════════════════════════
    HOTEL DETAIL PANEL — shown when a hotel row is expanded
@@ -548,14 +465,13 @@ export const HotelList = () => {
   const navigate = useNavigate();
   const { hotels, loading, error } = useSelector((s) => s.partneredhotels);
 
-  const userId      = useSelector((s) => s.user.userId);
+  const userId         = useSelector((s) => s.user.userId);
   const managerHotelId = useSelector((s) => s.user.hotelId);
-  const userRole    = useSelector((s) => s.user.userRole);
+  const userRole       = useSelector((s) => s.user.userRole);
   const isHotelOwner   = userRole === 'HOTEL_OWNER';
   const isHotelManager = ['HOTEL_MANAGER', 'HOTELMANAGER', 'manager'].includes(userRole);
 
-  const [expandedId, setExpandedId] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget]     = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
@@ -585,7 +501,6 @@ export const HotelList = () => {
       toast.success('Hotel deactivated successfully');
       setShowDeleteModal(false);
       setDeleteTarget(null);
-      if (expandedId === id) setExpandedId(null);
     } catch (err) {
       toast.error(err?.message || 'Failed to deactivate hotel');
     }
@@ -594,6 +509,103 @@ export const HotelList = () => {
   const totalHotels  = hotels.length;
   const totalRooms   = hotels.reduce((s, h) => s + (h.rooms?.length || 0), 0);
   const activeHotels = hotels.filter((h) => h.status?.toUpperCase() === 'ACTIVE').length;
+
+  /* ── Group hotels by propertyType ── */
+  const grouped = hotels.reduce((acc, hotel) => {
+    const key = hotel.propertyType || 'Uncategorized';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(hotel);
+    return acc;
+  }, {});
+  const groupKeys = Object.keys(grouped).sort();
+
+  /* ── Single hotel row ── */
+  const HotelRow = ({ hotel, index }) => {
+    const id       = getHotelId(hotel);
+    if (!id) return null;
+    const name     = hotel.name || hotel.hotelName || 'Unnamed Hotel';
+    const location = hotel.location || '—';
+    const rooms    = Array.isArray(hotel.rooms) ? hotel.rooms : [];
+    const status   = hotel.status?.toUpperCase() || 'UNKNOWN';
+    const isActive = status === 'ACTIVE';
+    const discount = hotel.discountPercentage || 0;
+    const prices   = rooms.map((r) => Number(r.pricePerNight || r.basePrice || 0)).filter((p) => p > 0);
+    const minP     = prices.length ? Math.min(...prices) : 0;
+
+    return (
+      <motion.div
+        key={id}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.04 }}
+        onClick={() => navigate(`/hotels/${id}`)}
+        className="grid grid-cols-[40px_1fr_auto] sm:grid-cols-[48px_1fr_140px_100px_80px_120px] gap-3 sm:gap-4 items-center px-5 py-4 cursor-pointer hover:bg-slate-50/80 transition-colors border-b border-slate-100 last:border-0"
+      >
+        {/* Thumbnail */}
+        <HotelThumb hotel={hotel} />
+
+        {/* Name */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-bold text-slate-900 text-sm truncate">{name}</h3>
+            {discount > 0 && (
+              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
+                <Percent className="w-2.5 h-2.5" />{discount}% off
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5 truncate sm:hidden">{location}</p>
+          {minP > 0 && (
+            <p className="text-xs text-slate-400 mt-0.5">
+              From <span className="font-semibold text-emerald-600">${minP}</span>/night
+            </p>
+          )}
+        </div>
+
+        {/* Location */}
+        <div className="hidden sm:flex items-center gap-1.5 truncate">
+          <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+          <span className="truncate text-xs text-slate-500">{location}</span>
+        </div>
+
+        {/* Rooms count */}
+        <div className="hidden sm:flex items-center gap-1.5">
+          <BedDouble className="w-3.5 h-3.5 text-slate-400" />
+          <span className="font-semibold text-xs text-slate-700">{rooms.length}</span>
+          <span className="text-slate-400 text-xs">room{rooms.length !== 1 ? 's' : ''}</span>
+        </div>
+
+        {/* Status */}
+        <div className="hidden sm:block">
+          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
+            isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+          }`}>
+            {isActive ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5" />}
+            {isActive ? 'Active' : status}
+          </span>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 justify-end">
+          <button
+            onClick={(e) => { e.stopPropagation(); navigate(`/hotels/edit/${id}`); }}
+            className="hidden sm:flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
+          >
+            <Edit className="w-3 h-3" /> Edit
+          </button>
+          {!isHotelManager && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setDeleteTarget(hotel); setShowDeleteModal(true); }}
+              className="hidden sm:flex items-center justify-center p-1.5 bg-red-50 border border-red-200 text-red-500 rounded-lg hover:bg-red-100 transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+          <ChevronRight className="w-4 h-4 text-slate-400" />
+        </div>
+      </motion.div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -629,9 +641,9 @@ export const HotelList = () => {
         {hotels.length > 0 && (
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: 'Total Hotels', value: totalHotels,  Icon: Building2, color: 'text-slate-700',   bg: 'bg-slate-100' },
-              { label: 'Total Rooms',  value: totalRooms,   Icon: BedDouble,  color: 'text-blue-600',   bg: 'bg-blue-50'   },
-              { label: 'Active',       value: activeHotels, Icon: CheckCircle,color: 'text-emerald-600', bg: 'bg-emerald-50'},
+              { label: 'Total Hotels', value: totalHotels,  Icon: Building2,  color: 'text-slate-700',    bg: 'bg-slate-100'  },
+              { label: 'Total Rooms',  value: totalRooms,   Icon: BedDouble,  color: 'text-blue-600',     bg: 'bg-blue-50'    },
+              { label: 'Active',       value: activeHotels, Icon: CheckCircle,color: 'text-emerald-600',  bg: 'bg-emerald-50' },
             ].map(({ label, value, Icon, color, bg }, i) => (
               <motion.div key={label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                 className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm flex items-center gap-3">
@@ -662,8 +674,8 @@ export const HotelList = () => {
           </div>
         )}
 
-        {/* ── Hotel List ── */}
-        {!loading && hotels.length === 0 ? (
+        {/* ── Empty ── */}
+        {!loading && hotels.length === 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 text-center">
             <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
@@ -684,132 +696,42 @@ export const HotelList = () => {
               </button>
             )}
           </motion.div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        )}
 
-            {/* Table header */}
-            <div className="hidden sm:grid grid-cols-[48px_1fr_140px_100px_80px_120px] gap-4 px-5 py-3 border-b border-slate-100 bg-slate-50">
-              <div />
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hotel</span>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Location</span>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Rooms</span>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status</span>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Actions</span>
-            </div>
+        {/* ── Hotels grouped by property type ── */}
+        {!loading && hotels.length > 0 && (
+          <div className="space-y-8">
+            {groupKeys.map((type) => (
+              <div key={type}>
+                {/* Group heading */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-7 h-7 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
+                    <Building2 className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">{type}</h2>
+                  <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                    {grouped[type].length}
+                  </span>
+                  <div className="flex-1 h-px bg-slate-100" />
+                </div>
 
-            {/* Hotel rows */}
-            <div className="divide-y divide-slate-100">
-              {hotels.map((hotel, index) => {
-                const id     = getHotelId(hotel);
-                if (!id) return null;
-
-                const name     = hotel.name || hotel.hotelName || 'Unnamed Hotel';
-                const location = hotel.location || '—';
-                const rooms    = Array.isArray(hotel.rooms) ? hotel.rooms : [];
-                const status   = hotel.status?.toUpperCase() || 'UNKNOWN';
-                const isActive = status === 'ACTIVE';
-                const discount = hotel.discountPercentage || 0;
-                const isExpanded = expandedId === id;
-
-                const prices = rooms.map((r) => Number(r.pricePerNight || r.basePrice || 0)).filter((p) => p > 0);
-                const minP   = prices.length ? Math.min(...prices) : 0;
-
-                return (
-                  <motion.div key={id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: index * 0.04 }}>
-
-                    {/* ── Row ── */}
-                    <div
-                      onClick={() => setExpandedId(isExpanded ? null : id)}
-                      className={`grid grid-cols-[40px_1fr_auto] sm:grid-cols-[48px_1fr_140px_100px_80px_120px] gap-3 sm:gap-4 items-center px-5 py-4 cursor-pointer transition-colors ${
-                        isExpanded ? 'bg-slate-50' : 'hover:bg-slate-50/70'
-                      }`}
-                    >
-                      {/* Thumbnail */}
-                      <HotelThumb hotel={hotel} />
-
-                      {/* Name + description */}
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-bold text-slate-900 text-sm truncate">{name}</h3>
-                          {discount > 0 && (
-                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
-                              <Percent className="w-2.5 h-2.5" />{discount}% off
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-400 mt-0.5 truncate sm:hidden">{location}</p>
-                        {minP > 0 && (
-                          <p className="text-xs text-slate-400 mt-0.5">
-                            From <span className="font-semibold text-emerald-600">${minP}</span>/night
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Location — desktop */}
-                      <div className="hidden sm:flex items-center gap-1.5 text-sm text-slate-500 truncate">
-                        <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                        <span className="truncate text-xs">{location}</span>
-                      </div>
-
-                      {/* Rooms count — desktop */}
-                      <div className="hidden sm:flex items-center gap-1.5 text-sm text-slate-600">
-                        <BedDouble className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="font-semibold text-xs">{rooms.length}</span>
-                        <span className="text-slate-400 text-xs">room{rooms.length !== 1 ? 's' : ''}</span>
-                      </div>
-
-                      {/* Status badge — desktop */}
-                      <div className="hidden sm:block">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                          isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                        }`}>
-                          {isActive ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5" />}
-                          {isActive ? 'Active' : status}
-                        </span>
-                      </div>
-
-                      {/* Actions — desktop + chevron */}
-                      <div className="flex items-center gap-2 justify-end">
-                        <button onClick={(e) => { e.stopPropagation(); navigate(`/hotels/edit/${id}`); }}
-                          className="hidden sm:flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors">
-                          <Edit className="w-3 h-3" /> Edit
-                        </button>
-                        {!isHotelManager && (
-                          <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(hotel); setShowDeleteModal(true); }}
-                            className="hidden sm:flex items-center justify-center p-1.5 bg-red-50 border border-red-200 text-red-500 rounded-lg hover:bg-red-100 transition-colors">
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                        <motion.div animate={{ rotate: isExpanded ? 90 : 0 }} transition={{ duration: 0.2 }}>
-                          <ChevronRight className="w-4 h-4 text-slate-400" />
-                        </motion.div>
-                      </div>
-                    </div>
-
-                    {/* ── Expanded detail panel ── */}
-                    <AnimatePresence>
-                      {isExpanded && (
-                        <motion.div
-                          key="panel"
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.25, ease: 'easeInOut' }}
-                          style={{ overflow: 'hidden' }}
-                        >
-                          <HotelDetailPanel
-                            hotel={hotel}
-                            isManager={isHotelManager}
-                            onEditHotel={() => navigate(`/hotels/edit/${id}`)}
-                            onDeleteHotel={() => { setDeleteTarget(hotel); setShowDeleteModal(true); }}
-                          />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                );
-              })}
-            </div>
+                {/* Table */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  {/* Table header */}
+                  <div className="hidden sm:grid grid-cols-[48px_1fr_140px_100px_80px_120px] gap-4 px-5 py-3 border-b border-slate-100 bg-slate-50">
+                    <div />
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hotel</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Location</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Rooms</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Actions</span>
+                  </div>
+                  {grouped[type].map((hotel, i) => (
+                    <HotelRow key={getHotelId(hotel)} hotel={hotel} index={i} />
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

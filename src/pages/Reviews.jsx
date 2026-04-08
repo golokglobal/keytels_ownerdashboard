@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import { Star, Eye, EyeOff, MessageSquare, Award } from 'lucide-react';
+import { HotelSelector } from '../components/shared/HotelSelector';
 import { toast } from 'react-hot-toast';
 import {
   fetchHotelReviews,
@@ -66,15 +67,18 @@ export const Reviews = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">Guest Reviews</h1>
-        <p className="text-slate-600">Manage and respond to guest feedback</p>
+        <h1 className="text-2xl font-bold text-slate-900">Guest Reviews</h1>
+        <p className="text-slate-500 text-sm mt-0.5">Manage and respond to guest feedback</p>
+        <div className="mt-2">
+          <HotelSelector />
+        </div>
       </div>
 
       {!activeHotelId && (
         <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-          <MessageSquare className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-slate-900 mb-2">Select a hotel</h3>
-          <p className="text-slate-600">Choose a hotel from the header to view reviews.</p>
+          <MessageSquare className="w-14 h-14 text-slate-200 mx-auto mb-3" />
+          <h3 className="text-base font-semibold text-slate-700 mb-1">No hotel selected</h3>
+          <p className="text-sm text-slate-500">Select a property above to view guest reviews.</p>
         </div>
       )}
 

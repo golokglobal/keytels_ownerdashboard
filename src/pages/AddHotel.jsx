@@ -9,10 +9,12 @@ import {
   updateHotelRoom,
   deleteHotelRoom,
 } from "../store/slices/PartnerHotelslice";
-import { fetchRoomTypes, fetchBedTypes, selectRoomTypes, selectBedTypes } from "../store/slices/catalogSlice";
+import { fetchPropertyTypes, fetchRoomTypes, fetchBedTypes, selectPropertyTypes, selectRoomTypes, selectBedTypes } from "../store/slices/catalogSlice";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { LocationPicker } from "../components/common/LocationPicker";
+import { S3ImageUpload } from "../components/shared/S3ImageUpload";
+import { uploadHotelImageFile } from "../api/s3Upload";
 import {
   X,
   AlertCircle,
@@ -80,7 +82,7 @@ const RoomFormFields = ({ data, onChange, validationError, roomTypes = [], bedTy
         )}
       </div>
       <div className="space-y-1">
-        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Bed Type</label>
+        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Bed Type *</label>
         {bedTypes.length > 0 ? (
           <select
             value={data.bedType}
@@ -102,7 +104,7 @@ const RoomFormFields = ({ data, onChange, validationError, roomTypes = [], bedTy
         )}
       </div>
     </div>
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-3 gap-3">
       <div className="space-y-1">
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Capacity *</label>
         <input
@@ -121,18 +123,29 @@ const RoomFormFields = ({ data, onChange, validationError, roomTypes = [], bedTy
           min="0"
           step="0.01"
           placeholder="e.g. 149"
-          value={data.basePrice}
-          onChange={(e) => onChange({ ...data, basePrice: e.target.value })}
+          value={data.pricePerNight}
+          onChange={(e) => onChange({ ...data, pricePerNight: e.target.value })}
+          className={inputCls}
+        />
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Units *</label>
+        <input
+          type="number"
+          min="1"
+          placeholder="e.g. 5"
+          value={data.totalRooms}
+          onChange={(e) => onChange({ ...data, totalRooms: e.target.value })}
           className={inputCls}
         />
       </div>
     </div>
     <div className="space-y-1">
-      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Size</label>
+      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Cancellation Policy</label>
       <input
-        placeholder="e.g. 350 sq ft"
-        value={data.size}
-        onChange={(e) => onChange({ ...data, size: e.target.value })}
+        placeholder="e.g. Free cancellation 48h before check-in"
+        value={data.cancellationPolicy}
+        onChange={(e) => onChange({ ...data, cancellationPolicy: e.target.value })}
         className={inputCls}
       />
     </div>
@@ -156,11 +169,13 @@ export const AddHotel = () => {
   const isUpdateMode = !!hotelId;
 
   const { loading, error, selectedHotel } = useSelector((state) => state.partneredhotels);
+  const propertyTypes = useSelector(selectPropertyTypes);
   const roomTypes = useSelector(selectRoomTypes);
   const bedTypes = useSelector(selectBedTypes);
   /* ─────────────────────── STATE ─────────────────────── */
   const [formData, setFormData] = useState({
     hotelName: "",
+    propertyType: "",
     description: "",
     location: "",
     latitude: "",
@@ -173,7 +188,8 @@ export const AddHotel = () => {
   });
 
   const [amenityInput, setAmenityInput] = useState("");
-  const [imageUrlInput, setImageUrlInput] = useState("");
+  // Files queued for upload in create-mode (uploaded after hotel is created)
+  const [pendingFiles, setPendingFiles] = useState([]);
   const [roomValidationError, setRoomValidationError] = useState("");
   const [updateSuccess, setUpdateSuccess] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -186,17 +202,19 @@ export const AddHotel = () => {
 
   const [roomData, setRoomData] = useState({
     roomType: "",
-    capacity: "",
-    basePrice: "",
-    available: true,
-    description: "",
-    size: "",
     bedType: "",
+    capacity: "",
+    pricePerNight: "",
+    totalRooms: "1",
+    isAvailable: true,
+    description: "",
+    cancellationPolicy: "",
     images: [],
   });
 
   /* ─────────────────────── FETCH FOR EDIT ─────────────────────── */
   useEffect(() => {
+    dispatch(fetchPropertyTypes());
     dispatch(fetchRoomTypes());
     dispatch(fetchBedTypes());
     if (isUpdateMode) dispatch(fetchHotelById(hotelId));
@@ -210,6 +228,7 @@ export const AddHotel = () => {
       formPopulated.current = true;
       setFormData({
         hotelName: selectedHotel.name || "",
+        propertyType: selectedHotel.propertyType || "",
         description: selectedHotel.description || "",
         location: selectedHotel.location || "",
         latitude: selectedHotel.latitude || "",
@@ -240,29 +259,28 @@ export const AddHotel = () => {
   const handleRemoveAmenity = (amenity) =>
     setFormData((prev) => ({ ...prev, amenities: prev.amenities.filter((a) => a !== amenity) }));
 
-  const handleAddHotelImage = () => {
-    const url = imageUrlInput.trim();
-    if (!url) return;
-    setFormData((prev) => ({ ...prev, hotelImages: [...prev.hotelImages, { imageUrl: url }] }));
-    setImageUrlInput("");
-  };
-
   const handleRemoveHotelImage = (index) =>
     setFormData((prev) => ({ ...prev, hotelImages: prev.hotelImages.filter((_, i) => i !== index) }));
 
   const handleAddRoom = () => {
-    if (!roomData.roomType || !roomData.capacity || !roomData.basePrice) {
-      setRoomValidationError("Room type, capacity and price are required.");
+    if (!roomData.roomType || !roomData.bedType || !roomData.capacity || !roomData.pricePerNight || !roomData.totalRooms) {
+      setRoomValidationError("Room type, bed type, capacity, price and total units are required.");
       return;
     }
     setFormData((prev) => ({
       ...prev,
       rooms: [
         ...prev.rooms,
-        { ...roomData, capacity: Number(roomData.capacity), basePrice: Number(roomData.basePrice), id: Date.now() },
+        {
+          ...roomData,
+          capacity: Number(roomData.capacity),
+          pricePerNight: Number(roomData.pricePerNight),
+          totalRooms: Number(roomData.totalRooms) || 1,
+          id: Date.now(),
+        },
       ],
     }));
-    setRoomData({ roomType: "", capacity: "", basePrice: "", available: true, description: "", size: "", bedType: "", images: [] });
+    setRoomData({ roomType: "", bedType: "", capacity: "", pricePerNight: "", totalRooms: "1", isAvailable: true, description: "", cancellationPolicy: "", images: [] });
     setRoomValidationError("");
   };
 
@@ -296,15 +314,14 @@ export const AddHotel = () => {
         roomId,
         data: {
           roomType: editingRoom.roomType,
-          capacity: Number(editingRoom.capacity),
-          basePrice: Number(editingRoom.basePrice || editingRoom.pricePerNight),
-          available: editingRoom.available ?? true,
-          description: editingRoom.description || "",
-          size: editingRoom.size || "",
           bedType: editingRoom.bedType || "",
-          roomNumber: editingRoom.roomNumber || "",
-          floor: editingRoom.floor || "",
-          status: editingRoom.status || "available",
+          description: editingRoom.description || "",
+          capacity: Number(editingRoom.capacity),
+          totalRooms: Number(editingRoom.totalRooms) || 1,
+          pricePerNight: Number(editingRoom.pricePerNight || editingRoom.basePrice),
+          isAvailable: editingRoom.isAvailable ?? true,
+          status: editingRoom.status || "ACTIVE",
+          cancellationPolicy: editingRoom.cancellationPolicy || "",
         },
       })).unwrap();
       toast.success("Room updated successfully");
@@ -343,14 +360,12 @@ export const AddHotel = () => {
 
     setSubmitting(true);
 
-    const pendingImages = imageUrlInput.trim()
-      ? [...formData.hotelImages, { imageUrl: imageUrlInput.trim() }]
-      : formData.hotelImages;
-    if (imageUrlInput.trim()) setImageUrlInput("");
+    const pendingImages = formData.hotelImages;
 
     /* Request body matching the API spec exactly */
     const dataToSend = {
       name: formData.hotelName,
+      propertyType: formData.propertyType,
       description: formData.description,
       location: formData.location,
       latitude: parseFloat(formData.latitude) || 0,
@@ -375,13 +390,13 @@ export const AddHotel = () => {
                   hotelId,
                   data: {
                     roomType: room.roomType,
-                    capacity: Number(room.capacity),
-                    pricePerNight: Number(room.basePrice),
-                    isAvailable: room.available ?? true,
-                    description: room.description || "",
-                    size: room.size || "",
                     bedType: room.bedType || "",
-                    images: room.images || [],
+                    description: room.description || "",
+                    capacity: Number(room.capacity),
+                    totalRooms: Number(room.totalRooms) || 1,
+                    pricePerNight: Number(room.pricePerNight),
+                    isAvailable: room.isAvailable ?? true,
+                    cancellationPolicy: room.cancellationPolicy || "",
                   },
                 }))
               )
@@ -410,6 +425,14 @@ export const AddHotel = () => {
           const createdHotelId = createdHotel.hotelId || createdHotel.partneredHotelId || createdHotel.id;
           if (!createdHotelId) throw new Error("Hotel created but ID not found in response");
 
+          /* Upload queued hotel images now that we have the hotel ID */
+          if (pendingFiles.length > 0) {
+            await Promise.allSettled(
+              pendingFiles.map((file) => uploadHotelImageFile(createdHotelId, file))
+            );
+            setPendingFiles([]);
+          }
+
           /* Create rooms separately */
           const roomResults = await Promise.all(
             formData.rooms.map((room) =>
@@ -417,13 +440,13 @@ export const AddHotel = () => {
                 hotelId: createdHotelId,
                 data: {
                   roomType: room.roomType,
-                  capacity: Number(room.capacity),
-                  pricePerNight: Number(room.basePrice),
-                  isAvailable: room.available ?? true,
-                  description: room.description || "",
-                  size: room.size || "",
                   bedType: room.bedType || "",
-                  images: room.images || [],
+                  description: room.description || "",
+                  capacity: Number(room.capacity),
+                  totalRooms: Number(room.totalRooms) || 1,
+                  pricePerNight: Number(room.pricePerNight),
+                  isAvailable: room.isAvailable ?? true,
+                  cancellationPolicy: room.cancellationPolicy || "",
                 },
               }))
             )
@@ -526,6 +549,19 @@ export const AddHotel = () => {
                 <input name="hotelName" placeholder="e.g. Mountain Vista Retreat" value={formData.hotelName} onChange={handleFormChange} className={inputCls} required />
               </div>
               <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Property Type *</label>
+                {propertyTypes.length > 0 ? (
+                  <select name="propertyType" value={formData.propertyType} onChange={handleFormChange} className={inputCls} required>
+                    <option value="">Select property type</option>
+                    {propertyTypes.map((pt) => (
+                      <option key={pt.id} value={pt.name}>{pt.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input name="propertyType" placeholder="e.g. Hotel, Resort, Motel" value={formData.propertyType} onChange={handleFormChange} className={inputCls} required />
+                )}
+              </div>
+              <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Description</label>
                 <textarea name="description" placeholder="Describe the hotel..." value={formData.description} onChange={handleFormChange} className={`${inputCls} resize-none`} rows="3" />
               </div>
@@ -607,29 +643,20 @@ export const AddHotel = () => {
 
             {/* Hotel Images */}
             <Section icon={ImageIcon} title="Hotel Images">
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  placeholder="Paste image URL..."
-                  value={imageUrlInput}
-                  onChange={(e) => setImageUrlInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddHotelImage())}
-                  onPaste={(e) => {
-                    const pasted = e.clipboardData.getData("text").trim();
-                    if (pasted) {
-                      e.preventDefault();
-                      setFormData((prev) => ({ ...prev, hotelImages: [...prev.hotelImages, { imageUrl: pasted }] }));
-                      setImageUrlInput("");
-                    }
-                  }}
-                  className={inputCls}
-                />
-                <button type="button" onClick={handleAddHotelImage} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm hover:bg-slate-800 transition-colors shrink-0">
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-              {formData.hotelImages.length > 0 ? (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+              <S3ImageUpload
+                label="Upload hotel photo"
+                uploadFn={(file) => {
+                  // Queue the file — will be uploaded after hotel creation
+                  setPendingFiles((prev) => [...prev, file]);
+                  // Return a local preview URL so the grid shows the image
+                  return Promise.resolve(URL.createObjectURL(file));
+                }}
+                onUploaded={(previewUrl) =>
+                  setFormData((prev) => ({ ...prev, hotelImages: [...prev.hotelImages, { imageUrl: previewUrl }] }))
+                }
+              />
+              {formData.hotelImages.length > 0 && (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-3">
                   {formData.hotelImages.map((img, idx) => (
                     <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-100">
                       <img src={img.imageUrl} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
@@ -642,11 +669,6 @@ export const AddHotel = () => {
                       </button>
                     </div>
                   ))}
-                </div>
-              ) : (
-                <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center">
-                  <ImageIcon className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400">No images added yet</p>
                 </div>
               )}
             </Section>
@@ -730,36 +752,61 @@ export const AddHotel = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Room Type *</label>
-                      <input value={editingRoom.roomType || ""} onChange={(e) => setEditingRoom((p) => ({ ...p, roomType: e.target.value }))} placeholder="e.g. Deluxe Suite" required className={inputCls} />
+                      {roomTypes.length > 0 ? (
+                        <select value={editingRoom.roomType || ""} onChange={(e) => setEditingRoom((p) => ({ ...p, roomType: e.target.value }))} required className={inputCls}>
+                          <option value="">Select room type</option>
+                          {roomTypes.map((rt) => <option key={rt.id} value={rt.name}>{rt.name}</option>)}
+                        </select>
+                      ) : (
+                        <input value={editingRoom.roomType || ""} onChange={(e) => setEditingRoom((p) => ({ ...p, roomType: e.target.value }))} placeholder="e.g. Deluxe Suite" required className={inputCls} />
+                      )}
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Bed Type</label>
-                      <input value={editingRoom.bedType || ""} onChange={(e) => setEditingRoom((p) => ({ ...p, bedType: e.target.value }))} placeholder="e.g. King" className={inputCls} />
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Bed Type *</label>
+                      {bedTypes.length > 0 ? (
+                        <select value={editingRoom.bedType || ""} onChange={(e) => setEditingRoom((p) => ({ ...p, bedType: e.target.value }))} required className={inputCls}>
+                          <option value="">Select bed type</option>
+                          {bedTypes.map((bt) => <option key={bt.id} value={bt.name}>{bt.name}</option>)}
+                        </select>
+                      ) : (
+                        <input value={editingRoom.bedType || ""} onChange={(e) => setEditingRoom((p) => ({ ...p, bedType: e.target.value }))} placeholder="e.g. King" required className={inputCls} />
+                      )}
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Capacity *</label>
                       <input type="number" min="1" value={editingRoom.capacity || ""} onChange={(e) => setEditingRoom((p) => ({ ...p, capacity: e.target.value }))} required className={inputCls} />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Price / Night *</label>
-                      <input type="number" min="0" step="0.01" value={editingRoom.basePrice || editingRoom.pricePerNight || ""} onChange={(e) => setEditingRoom((p) => ({ ...p, basePrice: e.target.value, pricePerNight: e.target.value }))} required className={inputCls} />
+                      <input type="number" min="0" step="0.01" value={editingRoom.pricePerNight || editingRoom.basePrice || ""} onChange={(e) => setEditingRoom((p) => ({ ...p, pricePerNight: e.target.value }))} required className={inputCls} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Units *</label>
+                      <input type="number" min="1" value={editingRoom.totalRooms || 1} onChange={(e) => setEditingRoom((p) => ({ ...p, totalRooms: e.target.value }))} required className={inputCls} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Size</label>
-                      <input value={editingRoom.size || ""} onChange={(e) => setEditingRoom((p) => ({ ...p, size: e.target.value }))} placeholder="e.g. 450 sq ft" className={inputCls} />
-                    </div>
-                    <div className="space-y-1">
                       <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
-                      <select value={editingRoom.status || "available"} onChange={(e) => setEditingRoom((p) => ({ ...p, status: e.target.value }))} className={inputCls}>
-                        <option value="available">Available</option>
-                        <option value="occupied">Occupied</option>
+                      <select value={editingRoom.status || "ACTIVE"} onChange={(e) => setEditingRoom((p) => ({ ...p, status: e.target.value }))} className={inputCls}>
+                        <option value="ACTIVE">Active</option>
+                        <option value="INACTIVE">Inactive</option>
                         <option value="maintenance">Maintenance</option>
                       </select>
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Availability</label>
+                      <select value={String(editingRoom.isAvailable ?? true)} onChange={(e) => setEditingRoom((p) => ({ ...p, isAvailable: e.target.value === "true" }))} className={inputCls}>
+                        <option value="true">Available</option>
+                        <option value="false">Unavailable</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Cancellation Policy</label>
+                    <input value={editingRoom.cancellationPolicy || ""} onChange={(e) => setEditingRoom((p) => ({ ...p, cancellationPolicy: e.target.value }))} placeholder="e.g. Free cancellation 48h before check-in" className={inputCls} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Description</label>
@@ -818,6 +865,19 @@ export const AddHotel = () => {
             <div className="space-y-1">
               <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Hotel Name *</label>
               <input name="hotelName" placeholder="e.g. Ocean Breeze Resort" value={formData.hotelName} onChange={handleFormChange} className={inputCls} required />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Property Type *</label>
+              {propertyTypes.length > 0 ? (
+                <select name="propertyType" value={formData.propertyType} onChange={handleFormChange} className={inputCls} required>
+                  <option value="">Select property type</option>
+                  {propertyTypes.map((pt) => (
+                    <option key={pt.id} value={pt.name}>{pt.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <input name="propertyType" placeholder="e.g. Hotel, Resort, Motel" value={formData.propertyType} onChange={handleFormChange} className={inputCls} required />
+              )}
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Description</label>
@@ -913,29 +973,15 @@ export const AddHotel = () => {
 
           {/* Hotel Images */}
           <Section icon={ImageIcon} title="Hotel Images">
-            <div className="flex gap-2">
-              <input
-                type="url"
-                placeholder="Paste image URL..."
-                value={imageUrlInput}
-                onChange={(e) => setImageUrlInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddHotelImage())}
-                onPaste={(e) => {
-                  const pasted = e.clipboardData.getData("text").trim();
-                  if (pasted) {
-                    e.preventDefault();
-                    setFormData((prev) => ({ ...prev, hotelImages: [...prev.hotelImages, { imageUrl: pasted }] }));
-                    setImageUrlInput("");
-                  }
-                }}
-                className={inputCls}
-              />
-              <button type="button" onClick={handleAddHotelImage} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm hover:bg-slate-800 transition-colors shrink-0">
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-            {formData.hotelImages.length > 0 ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+            <S3ImageUpload
+              label="Upload hotel photo"
+              uploadFn={(file) => uploadHotelImageFile(hotelId, file)}
+              onUploaded={(url) =>
+                setFormData((prev) => ({ ...prev, hotelImages: [...prev.hotelImages, { imageUrl: url }] }))
+              }
+            />
+            {formData.hotelImages.length > 0 && (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-3">
                 {formData.hotelImages.map((img, idx) => (
                   <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-100">
                     <img src={img.imageUrl} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
@@ -949,18 +995,12 @@ export const AddHotel = () => {
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="border-2 border-dashed border-slate-200 rounded-xl p-10 text-center">
-                <ImageIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm text-slate-400 font-medium">No images added yet</p>
-                <p className="text-xs text-slate-300 mt-1">Paste a URL above to add hotel photos</p>
-              </div>
             )}
           </Section>
 
           {/* Rooms */}
           <Section icon={BedDouble} title="Rooms">
-            <RoomFormFields data={roomData} onChange={setRoomData} validationError={roomValidationError} />
+            <RoomFormFields data={roomData} onChange={setRoomData} validationError={roomValidationError} roomTypes={roomTypes} bedTypes={bedTypes} />
             <button
               type="button"
               onClick={handleAddRoom}
@@ -977,7 +1017,7 @@ export const AddHotel = () => {
                     <div>
                       <p className="font-semibold text-slate-900 text-sm capitalize">{room.roomType}</p>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        {room.capacity} guests &bull; ${room.basePrice}/night
+                        {room.capacity} guests &bull; ${room.pricePerNight}/night &bull; {room.totalRooms} unit{room.totalRooms !== 1 ? "s" : ""}
                         {room.bedType && ` · ${room.bedType}`}
                       </p>
                     </div>

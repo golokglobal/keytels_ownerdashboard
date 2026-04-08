@@ -65,6 +65,10 @@ const DOCS = [
     title: 'Settings',
     content: 'Update your account details, notification preferences, and hotel configuration.',
   },
+  {
+    title: 'Catalog Management',
+    content: 'Admin-only. Define property types, room types, and bed types that appear as dropdown options when creating hotels and rooms.',
+  },
 ];
 
 /* Badge component — matches Expedia dark pill style */
@@ -88,6 +92,8 @@ const NavItem = ({ item, onClose, selectedKey, onSelectKey }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const locationFull = location.pathname + location.search;
+
   // Group is active only when a child of THIS group was explicitly selected
   // AND the current route still matches that child's path
   const isChildActive = selectedKey
@@ -95,12 +101,12 @@ const NavItem = ({ item, onClose, selectedKey, onSelectKey }) => {
       (() => {
         const childLabel = selectedKey.split('__')[1];
         const child = item.children?.find((c) => c.label === childLabel);
-        return child?.path === location.pathname;
+        return child?.path === locationFull;
       })()
     : false;
 
   const [expanded, setExpanded] = useState(
-    item.children?.some((c) => c.path && location.pathname === c.path) ?? false
+    item.children?.some((c) => c.path && locationFull === c.path) ?? false
   );
 
   if (item.children) {
@@ -222,7 +228,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
     {
       path: '/bookings',
       icon: TrendingUp,
-      label: 'Opportunities',
+      label: 'Inbox',
       badge: pendingBookings,
     },
     {
@@ -249,11 +255,11 @@ export const Sidebar = ({ isOpen, onClose }) => {
       label: 'Marketing',
       icon: Tag,
       children: [
-        { path: '/dashboard', label: 'Overview' },
-        { path: '/financials', label: 'Promotions' },
-        { path: '/financials', label: 'Campaigns' },
-        { path: '/financials', label: 'Accelerator' },
-        { path: '/financials', label: 'TravelAds' },
+        { path: '/marketing?tab=overview',    label: 'Overview' },
+        { path: '/marketing?tab=promotions',  label: 'Promotions' },
+        { path: '/marketing?tab=campaigns',   label: 'Campaigns' },
+        { path: '/marketing?tab=accelerator', label: 'Accelerator' },
+        { path: '/marketing?tab=travelads',   label: 'TravelAds' },
       ],
     },
     {
@@ -311,6 +317,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         { path: '/staff', label: 'Staff' },
         { path: '/settings', label: 'Settings' },
         { path: '/add-hotel', label: 'Add a property' },
+        { path: '/catalog', label: 'Catalog management' },
       ],
     },
     {
