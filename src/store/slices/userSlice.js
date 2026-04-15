@@ -175,6 +175,7 @@ const initialState = {
   user: null,
   userId: localStorage.getItem("userId") || null,
   userRole: localStorage.getItem("userRole") || null,
+  permission: JSON.parse(localStorage.getItem("userPermission") || "null"), // staff permission
   hotelId: localStorage.getItem("hotelId") || null,          // legacy single id
   hotelIds: JSON.parse(localStorage.getItem("hotelIds") || "[]"), // preferred array
   accessToken: localStorage.getItem("accessToken") || null,
@@ -208,6 +209,7 @@ const userSlice = createSlice({
           state.user = user;
           state.userId = user.id || user._id || null;
           state.userRole = user.role || null;
+          state.permission = user.permission || null;
 
           // Hotel IDs priority: stored array > user.hotels > legacy hotelId
           let hotelIds = JSON.parse(localStorage.getItem("hotelIds") || "[]");
@@ -295,6 +297,8 @@ const userSlice = createSlice({
         state.refreshToken = refreshToken;
         state.userId = user?.id || user?._id || null;
         state.userRole = user?.role || null;
+        // Staff: permission object present; Manager: null
+        state.permission = user?.permission || null;
 
         // Prefer array from backend if available
         state.hotelIds = user?.hotels?.map(h => h._id || h.partneredHotelId || h.id).filter(Boolean) || [];
@@ -308,6 +312,7 @@ const userSlice = createSlice({
         localStorage.setItem("refreshToken", refreshToken || "");
         localStorage.setItem("userId", state.userId || "");
         localStorage.setItem("userRole", state.userRole || "");
+        localStorage.setItem("userPermission", JSON.stringify(state.permission));
 
         if (state.hotelIds.length > 0) {
           localStorage.setItem("hotelIds", JSON.stringify(state.hotelIds));
@@ -362,7 +367,21 @@ const userSlice = createSlice({
         state.error = action.payload;
       })
 
-      // ... (keep your other cases: fetchCurrentUser, updateProfile, logoutUser, etc.)
+      // LOGOUT
+      .addCase(logoutUser.fulfilled, (state) => {
+        state.user = null;
+        state.userId = null;
+        state.userRole = null;
+        state.permission = null;
+        state.hotelId = null;
+        state.hotelIds = [];
+        state.accessToken = null;
+        state.refreshToken = null;
+        state.isAuthenticated = false;
+        state.loading = false;
+        state.error = null;
+        state.wallet = null;
+      })
 
       // FETCH OWNER WALLET
       .addCase(fetchOwnerWallet.pending, (state) => {
@@ -408,8 +427,10 @@ export const selectPrimaryHotelId = (state) => state.user.hotelId || state.user.
 export const selectIsAuthenticated = (state) => state.user.isAuthenticated;
 export const selectUserLoading = (state) => state.user.loading;
 export const selectUserError = (state) => state.user.error;
-export const selectIsHotelManager = (state) =>
-  ["HOTELMANAGER", "manager"].includes(state.user.userRole);
+export const selectIsHotelManager = (state) => state.user.userRole === "HOTEL_MANAGER";
+export const selectIsHotelStaff = (state) => state.user.userRole === "HOTEL_STAFF";
+export const selectIsHotelOwner = (state) => state.user.userRole === "HOTEL_OWNER";
+export const selectUserPermission = (state) => state.user.permission;
 export const selectWallet = (state) => state.user.wallet;
 export const selectWalletLoading = (state) => state.user.walletLoading;
 export const selectWalletError = (state) => state.user.walletError;

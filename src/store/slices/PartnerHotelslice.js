@@ -4,11 +4,21 @@ import * as api from "../../api/partneredHotelsApi";
 
 /* ============================ HOTEL THUNKS ============================ */
 
-// Fetch all hotels for the authenticated owner
+// Fetch hotels — owner gets all via owners/hotels, staff gets their assigned hotel by ID
 export const fetchOwnerHotels = createAsyncThunk(
   "partneredHotel/fetchOwnerHotels",
   async ({ page = 0, size = 50 } = {}, { rejectWithValue }) => {
     try {
+      const role = localStorage.getItem("userRole") || "";
+      const isStaff = role === "HOTEL_STAFF" || role === "STAFF" || role === "MANAGER" || role === "HOTEL_MANAGER";
+
+      if (isStaff) {
+        const hotelId = localStorage.getItem("hotelId");
+        if (!hotelId) return rejectWithValue("No hotel assigned to this staff account");
+        const hotel = await api.getPartneredHotelById(hotelId);
+        return [hotel]; // wrap in array to match owner response shape
+      }
+
       const response = await api.getOwnerHotels(page, size);
       return response;
     } catch (error) {
@@ -138,27 +148,46 @@ export const deleteHotelRoom = createAsyncThunk(
 );
 
 /* ============================ ROOM IMAGE THUNKS ============================ */
+
+// GET /rooms/{roomId}/images → [{ imageId, imageUrl }]
 export const fetchRoomImages = createAsyncThunk(
   "partneredHotel/fetchRoomImages",
-  async (roomId) => {
-    const images = await api.getRoomImages(roomId);
-    return { roomId, images };
+  async (roomId, { rejectWithValue }) => {
+    try {
+      const images = await api.getRoomImages(roomId);
+      return { roomId, images: Array.isArray(images) ? images : [] };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || "Failed to fetch images");
+    }
   }
 );
 
+// POST /rooms/{roomId}/images  multipart (field: "file") → { imageId, imageUrl }
 export const uploadRoomImage = createAsyncThunk(
   "partneredHotel/uploadRoomImage",
-  async ({ roomId, formData }) => {
-    const response = await api.uploadRoomImage(roomId, formData);
-    return { roomId, image: response };
+  async ({ roomId, file }, { rejectWithValue }) => {
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const response = await api.uploadRoomImage(roomId, fd);
+      // response: { imageId, imageUrl }
+      return { roomId, image: response };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || "Failed to upload image");
+    }
   }
 );
 
+// DELETE /rooms/images/{imageId} → { message }
 export const deleteRoomImage = createAsyncThunk(
   "partneredHotel/deleteRoomImage",
-  async ({ imageId, roomId }) => {
-    await api.deleteRoomImage(imageId);
-    return { imageId, roomId };
+  async ({ imageId, roomId }, { rejectWithValue }) => {
+    try {
+      await api.deleteRoomImage(imageId);
+      return { imageId, roomId };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || "Failed to delete image");
+    }
   }
 );
 

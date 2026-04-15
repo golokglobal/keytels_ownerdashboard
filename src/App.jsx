@@ -12,6 +12,8 @@ import { Landing } from './pages/Landing';
 import { Login } from './pages/Auth/Login';
 import { OwnerLogin } from './pages/Auth/OwnerLogin';
 import { ForgotPassword } from './pages/Auth/ForgotPassword';
+import { PaymentSuccess } from './pages/Onboarding/PaymentSuccess';
+import { ChoosePlan } from './pages/Onboarding/ChoosePlan';
 
 // Protected pages — lazy loaded for code splitting
 const Dashboard      = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -89,6 +91,10 @@ function App() {
             <Route path="hotels/:hotelId" element={<HotelDetail />} />
             <Route path="marketing" element={<Marketing />} />
           </Route>
+
+          {/* Stripe redirect — must be public (user lands here from Stripe) */}
+          <Route path="/payment-success" element={<PaymentSuccess />} />
+          <Route path="/choose-plan" element={<ChoosePlan />} />
 
           <Route path="/register" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />

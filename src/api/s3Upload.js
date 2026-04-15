@@ -12,8 +12,11 @@ import api from '../config/axiosConfig';
  */
 export const uploadHotelImageFile = async (hotelId, file) => {
   const fd = new FormData();
-  fd.append('image', file);
-  const { data } = await api.post(`/partneredhotel/${hotelId}/images`, fd);
+  // Backend expects multipart field name "file"
+  fd.append('file', file);
+  const { data } = await api.post(`/partneredhotel/${hotelId}/images`, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
   return data?.imageUrl || data?.url || data;
 };
 
@@ -24,8 +27,10 @@ export const uploadHotelImageFile = async (hotelId, file) => {
  */
 export const uploadRoomImageFile = async (roomId, file) => {
   const fd = new FormData();
-  fd.append('image', file);
-  const { data } = await api.post(`/partneredhotel/rooms/${roomId}/images`, fd);
+  fd.append('file', file);
+  const { data } = await api.post(`/partneredhotel/rooms/${roomId}/images`, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
   return data; // { imageId, imageUrl }
 };
 

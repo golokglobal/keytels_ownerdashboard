@@ -57,17 +57,27 @@ export const createPartneredHotelBooking = (bookingData) =>
 
 /* ============================ ROOM IMAGES ============================ */
 
-// Get Room Images (204 No Content when empty → return [])
+// GET /partneredhotel/rooms/{roomId}/images → [{ imageId, imageUrl }]
 export const getRoomImages = (roomId) =>
-  api.get(`/partneredhotel/rooms/${roomId}/images`).then(res => res.data ?? []).catch(err => {
-    if (err.response?.status === 204) return [];
-    throw err;
-  });
+  api.get(`/partneredhotel/rooms/${roomId}/images`)
+    .then(res => Array.isArray(res.data) ? res.data : [])
+    .catch(err => {
+      if (err.response?.status === 204) return [];
+      throw err;
+    });
 
-// Upload Room Image
-export const uploadRoomImage = (roomId, data) =>
-  api.post(`/partneredhotel/rooms/${roomId}/images`, data).then(res => res.data);
+// POST /partneredhotel/rooms/{roomId}/images  multipart/form-data (field: "file")
+// → { imageId, imageUrl }
+export const uploadRoomImage = (roomId, formData) =>
+  api.post(`/partneredhotel/rooms/${roomId}/images`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(res => res.data);
 
-// Delete Room Image
+// GET /partneredhotel/rooms/images/{imageId}/download → binary (used for explicit download)
+export const downloadRoomImage = (imageId) =>
+  api.get(`/partneredhotel/rooms/images/${imageId}/download`, { responseType: 'blob' })
+    .then(res => res.data);
+
+// DELETE /partneredhotel/rooms/images/{imageId} → { message }
 export const deleteRoomImage = (imageId) =>
   api.delete(`/partneredhotel/rooms/images/${imageId}`).then(res => res.data);

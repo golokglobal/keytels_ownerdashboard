@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Hotel, Loader2 } from "lucide-react";
 import {
@@ -32,17 +32,37 @@ export const BillingGate = ({ children }) => {
   const billing = useSelector(selectBilling);
   const loading = useSelector(selectBillingLoading);
 
-  const isOwner = userRole === "OWNER" || userRole === "owner";
+  const isOwner = userRole === "HOTEL_OWNER";
+  const devSkipBilling =
+    import.meta.env.DEV && import.meta.env.VITE_DEV_SKIP_BILLING === "true";
+
+  const pollRef = useRef(null);
 
   useEffect(() => {
     // Only fetch billing for owners, and only once
-    if (isOwner && ownerId && !billing) {
+    if (isOwner && ownerId && !billing && !devSkipBilling) {
       dispatch(fetchOwnerBilling(ownerId));
     }
-  }, [isOwner, ownerId, billing, dispatch]);
+  }, [isOwner, ownerId, billing, devSkipBilling, dispatch]);
+
+  // Auto-poll when CHECKOUT_PENDING — webhook may arrive any moment
+  useEffect(() => {
+    const status = billing?.subscriptionStatus;
+    if (!isOwner || !ownerId || devSkipBilling || status !== "CHECKOUT_PENDING") {
+      clearInterval(pollRef.current);
+      return;
+    }
+    pollRef.current = setInterval(() => {
+      dispatch(fetchOwnerBilling(ownerId));
+    }, 3000);
+    return () => clearInterval(pollRef.current);
+  }, [isOwner, ownerId, billing?.subscriptionStatus, devSkipBilling, dispatch]);
 
   // Staff / manager roles — no billing gate
   if (!isOwner) return children;
+
+  // Dev-only bypass to keep local work unblocked (no billing API calls)
+  if (devSkipBilling) return children;
 
   // Fetching billing for the first time
   if (loading && !billing) {
