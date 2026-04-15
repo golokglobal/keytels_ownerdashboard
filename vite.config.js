@@ -26,6 +26,14 @@ export default defineConfig({
       // ───────────────────────────────────────────────
       // IMPORTANT: Specific routes MUST come before generic fallback
       // ───────────────────────────────────────────────
+      '/api/owner-billing': {
+        target: 'http://localhost:8089',  // billing service
+        // target: BACKEND,
+        changeOrigin: true,
+        secure: false,
+        configure: stripWWWAuthenticate,
+      },
+
       '/api/owners': {
         target: 'http://localhost:8083',  // auth service — owner data lives here
         // target: BACKEND,
@@ -35,7 +43,15 @@ export default defineConfig({
       },
 
       '/api/staff': {
-        target: 'http://localhost:8083',  // auth service
+        target: 'http://localhost:8083',  // staff service
+        // target: BACKEND,
+        changeOrigin: true,
+        secure: false,
+        configure: stripWWWAuthenticate,
+      },
+
+      '/api/hotel-managers': {
+        target: 'http://localhost:8083',  // staff service
         // target: BACKEND,
         changeOrigin: true,
         secure: false,

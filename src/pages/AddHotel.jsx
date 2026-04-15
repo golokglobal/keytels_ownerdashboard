@@ -193,6 +193,7 @@ export const AddHotel = () => {
   const [roomValidationError, setRoomValidationError] = useState("");
   const [updateSuccess, setUpdateSuccess] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [existingRooms, setExistingRooms] = useState([]);
   const [editingRoom, setEditingRoom] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -263,8 +264,8 @@ export const AddHotel = () => {
     setFormData((prev) => ({ ...prev, hotelImages: prev.hotelImages.filter((_, i) => i !== index) }));
 
   const handleAddRoom = () => {
-    if (!roomData.roomType || !roomData.bedType || !roomData.capacity || !roomData.pricePerNight || !roomData.totalRooms) {
-      setRoomValidationError("Room type, bed type, capacity, price and total units are required.");
+    if (!roomData.roomType || !roomData.capacity || !roomData.pricePerNight || !roomData.totalRooms) {
+      setRoomValidationError("Room type, capacity, price and total units are required.");
       return;
     }
     setFormData((prev) => ({
@@ -352,9 +353,12 @@ export const AddHotel = () => {
   /* ─────────────────────── SUBMIT ─────────────────────── */
   const onSubmit = async (e) => {
     e.preventDefault();
+    setSubmitError("");
 
     if (!isUpdateMode && formData.rooms.length === 0) {
-      toast.error("Please add at least one room.");
+      const msg = "Please add at least one room.";
+      toast.error(msg);
+      setSubmitError(msg);
       return;
     }
 
@@ -420,10 +424,10 @@ export const AddHotel = () => {
           (payload) => ({ ok: true, payload }),
           (err) => ({ ok: false, error: err })
         );
-        if (hotelResult.ok) {
-          const createdHotel = hotelResult.payload;
-          const createdHotelId = createdHotel.hotelId || createdHotel.partneredHotelId || createdHotel.id;
-          if (!createdHotelId) throw new Error("Hotel created but ID not found in response");
+          if (hotelResult.ok) {
+            const createdHotel = hotelResult.payload;
+            const createdHotelId = createdHotel.hotelId || createdHotel.partneredHotelId || createdHotel.id;
+            if (!createdHotelId) throw new Error("Hotel created but ID not found in response");
 
           /* Upload queued hotel images now that we have the hotel ID */
           if (pendingFiles.length > 0) {
@@ -431,6 +435,8 @@ export const AddHotel = () => {
               pendingFiles.map((file) => uploadHotelImageFile(createdHotelId, file))
             );
             setPendingFiles([]);
+            // Refresh hotel so images are reflected in store/UI
+            await dispatch(fetchHotelById(createdHotelId)).unwrap().catch(() => {});
           }
 
           /* Create rooms separately */
@@ -473,6 +479,7 @@ export const AddHotel = () => {
       }
     } catch (err) {
       toast.error(err.message || "Failed to save hotel. Please try again.");
+      setSubmitError(err.message || "Failed to save hotel. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -641,23 +648,22 @@ export const AddHotel = () => {
               </div>
             </Section>
 
-            {/* Hotel Images */}
-            <Section icon={ImageIcon} title="Hotel Images">
-              <S3ImageUpload
-                label="Upload hotel photo"
-                uploadFn={(file) => {
-                  // Queue the file — will be uploaded after hotel creation
-                  setPendingFiles((prev) => [...prev, file]);
-                  // Return a local preview URL so the grid shows the image
-                  return Promise.resolve(URL.createObjectURL(file));
-                }}
-                onUploaded={(previewUrl) =>
-                  setFormData((prev) => ({ ...prev, hotelImages: [...prev.hotelImages, { imageUrl: previewUrl }] }))
+          {/* Hotel Images */}
+          <Section icon={ImageIcon} title="Hotel Images">
+            <S3ImageUpload
+              label="Upload hotel photo"
+              uploadFn={(file) => uploadHotelImageFile(hotelId, file)}
+              onUploaded={(url) => {
+                setFormData((prev) => ({ ...prev, hotelImages: [...prev.hotelImages, { imageUrl: url }] }));
+                if (hotelId) {
+                  // Refresh selected hotel so other views show the new images
+                  dispatch(fetchHotelById(hotelId)).unwrap().catch(() => {});
                 }
-              />
-              {formData.hotelImages.length > 0 && (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-3">
-                  {formData.hotelImages.map((img, idx) => (
+              }}
+            />
+            {formData.hotelImages.length > 0 && (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-3">
+                {formData.hotelImages.map((img, idx) => (
                     <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-100">
                       <img src={img.imageUrl} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
                       <button
@@ -975,9 +981,14 @@ export const AddHotel = () => {
           <Section icon={ImageIcon} title="Hotel Images">
             <S3ImageUpload
               label="Upload hotel photo"
-              uploadFn={(file) => uploadHotelImageFile(hotelId, file)}
-              onUploaded={(url) =>
-                setFormData((prev) => ({ ...prev, hotelImages: [...prev.hotelImages, { imageUrl: url }] }))
+              uploadFn={(file) => {
+                // Queue the file — will be uploaded after hotel creation
+                setPendingFiles((prev) => [...prev, file]);
+                // Return a local preview URL so the grid shows the image
+                return Promise.resolve(URL.createObjectURL(file));
+              }}
+              onUploaded={(previewUrl) =>
+                setFormData((prev) => ({ ...prev, hotelImages: [...prev.hotelImages, { imageUrl: previewUrl }] }))
               }
             />
             {formData.hotelImages.length > 0 && (
@@ -1009,10 +1020,10 @@ export const AddHotel = () => {
               <Plus className="w-4 h-4" /> Add Room
             </button>
 
-            {formData.rooms.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Added Rooms ({formData.rooms.length})</p>
-                {formData.rooms.map((room) => (
+        {formData.rooms.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Added Rooms ({formData.rooms.length})</p>
+            {formData.rooms.map((room) => (
                   <div key={room.id} className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100">
                     <div>
                       <p className="font-semibold text-slate-900 text-sm capitalize">{room.roomType}</p>
@@ -1027,13 +1038,19 @@ export const AddHotel = () => {
                   </div>
                 ))}
               </div>
-            )}
-          </Section>
+        )}
+      </Section>
 
-          {/* Submit */}
-          <div className="flex gap-3 pb-8">
-            <button
-              type="button"
+      {submitError && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-2 text-red-700 text-sm">
+          <AlertCircle className="w-4 h-4 shrink-0" /> {submitError}
+        </div>
+      )}
+
+      {/* Submit */}
+      <div className="flex gap-3 pb-8">
+        <button
+          type="button"
               onClick={() => navigate("/hotels")}
               className="flex-1 py-3.5 border border-slate-200 rounded-2xl text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-colors"
             >

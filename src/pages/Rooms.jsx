@@ -562,7 +562,7 @@ const RoomPanel = ({ hotel }) => {
                 uploadFn={async (file) => {
                   const rid = imageRoom.roomId || imageRoom.id;
                   const fd = new FormData();
-                  fd.append('image', file);
+                  fd.append('file', file);
                   const result = await dispatch(uploadRoomImage({ roomId: rid, formData: fd })).unwrap();
                   dispatch(fetchRoomImages(rid));
                   return result?.imageUrl || result?.url || '';

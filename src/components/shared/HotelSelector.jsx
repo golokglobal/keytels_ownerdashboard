@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Building2, ChevronDown, Check, MapPin } from 'lucide-react';
 import { fetchOwnerHotels } from '../../store/slices/PartnerHotelslice';
-import { setActiveHotelId, selectPrimaryHotelId } from '../../store/slices/userSlice';
+import { setActiveHotelId, selectPrimaryHotelId, selectUserRole } from '../../store/slices/userSlice';
 
 const getHotelId = (h) => h?.partneredHotelId || h?.id || h?._id || h?.hotelId || null;
 const getHotelName = (h) => h?.hotelName || h?.name || 'Unnamed Hotel';
@@ -13,6 +13,8 @@ export const HotelSelector = ({ className = '' }) => {
   const hotels = useSelector((s) => s.partneredhotels.hotels) || [];
   const loading = useSelector((s) => s.partneredhotels.loading);
   const activeHotelId = useSelector(selectPrimaryHotelId);
+  const userRole = useSelector(selectUserRole);
+  const isOwner = userRole === 'HOTEL_OWNER';
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -33,12 +35,39 @@ export const HotelSelector = ({ className = '' }) => {
   }, []);
 
   const activeHotel = hotels.find((h) => getHotelId(h) === activeHotelId) || null;
+  const city = activeHotel ? getHotelCity(activeHotel) : null;
 
   const handleSelect = (hotel) => {
     dispatch(setActiveHotelId(getHotelId(hotel)));
     setOpen(false);
   };
 
+  // ── Staff / Manager: static badge, no dropdown ──────────────────────────
+  if (!isOwner) {
+    if (loading && !activeHotel) {
+      return (
+        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-400 ${className}`}>
+          <Building2 className="w-4 h-4 shrink-0" />
+          <span>Loading…</span>
+        </div>
+      );
+    }
+    return (
+      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm ${className}`}>
+        <Building2 className="w-4 h-4 shrink-0 text-slate-400" />
+        <span className="font-semibold text-slate-800 truncate">
+          {activeHotel ? getHotelName(activeHotel) : 'No hotel assigned'}
+        </span>
+        {city && (
+          <span className="text-slate-400 text-xs flex items-center gap-1 truncate hidden sm:flex">
+            · <MapPin className="w-3 h-3 shrink-0" /> {city}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  // ── Owner: interactive dropdown ──────────────────────────────────────────
   if (hotels.length === 0) {
     return (
       <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-400 ${className}`}>
@@ -58,9 +87,9 @@ export const HotelSelector = ({ className = '' }) => {
         <span className="truncate font-medium">
           {activeHotel ? getHotelName(activeHotel) : 'Select a hotel'}
         </span>
-        {activeHotel && getHotelCity(activeHotel) && (
+        {activeHotel && city && (
           <span className="text-slate-400 text-xs truncate hidden sm:inline">
-            · {getHotelCity(activeHotel)}
+            · {city}
           </span>
         )}
         <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-400 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
@@ -75,7 +104,7 @@ export const HotelSelector = ({ className = '' }) => {
             {hotels.map((hotel) => {
               const hid = getHotelId(hotel);
               const isActive = hid === activeHotelId;
-              const city = getHotelCity(hotel);
+              const hCity = getHotelCity(hotel);
               return (
                 <li key={hid}>
                   <button
@@ -92,10 +121,10 @@ export const HotelSelector = ({ className = '' }) => {
                         <p className={`text-sm font-medium truncate ${isActive ? 'text-indigo-700' : 'text-slate-800'}`}>
                           {getHotelName(hotel)}
                         </p>
-                        {city && (
+                        {hCity && (
                           <p className="text-xs text-slate-400 flex items-center gap-0.5 mt-0.5">
                             <MapPin className="w-3 h-3 shrink-0" />
-                            {city}
+                            {hCity}
                           </p>
                         )}
                       </div>

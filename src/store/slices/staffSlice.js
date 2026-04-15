@@ -1,20 +1,56 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as api from '../../api/staff';
 
-/* ============================ MANAGER THUNK ============================ */
+/* ============================ MANAGER THUNKS ============================ */
 
-// Create new hotel manager (uses /staff/hotel-managers/create endpoint)
+// Fetch all managers for a hotel — GET /hotel-managers/hotel/{hotelId}
+export const fetchHotelManagers = createAsyncThunk(
+  'staff/fetchHotelManagers',
+  async (hotelId, { rejectWithValue }) => {
+    try {
+      const response = await api.getHotelManagers(hotelId);
+      return Array.isArray(response) ? response : response.managers || [];
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch hotel managers');
+    }
+  }
+);
+
+// Create new hotel manager — POST /hotel-managers
 export const createManagerMember = createAsyncThunk(
   'staff/createManagerMember',
   async (managerData, { rejectWithValue }) => {
     try {
-      console.log('🔄 Creating hotel manager:', managerData);
       const response = await api.createManager(managerData);
-      console.log('✅ Hotel manager created:', response);
-      return response.hotelManager || response;
+      return response.hotelManager || response.manager || response;
     } catch (error) {
-      console.error('❌ Error creating manager:', error);
-      return rejectWithValue(error.response?.data?.message || 'Failed to create hotel manager');
+      return rejectWithValue(error.response?.data?.error || error.response?.data?.message || 'Failed to create hotel manager');
+    }
+  }
+);
+
+// Update a hotel manager — PUT /hotel-managers/{id}
+export const updateManagerMember = createAsyncThunk(
+  'staff/updateManagerMember',
+  async ({ staffId, staffData }, { rejectWithValue }) => {
+    try {
+      const response = await api.updateManager(staffId, staffData);
+      return response.hotelManager || response.manager || response;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.error || error.response?.data?.message || 'Failed to update hotel manager');
+    }
+  }
+);
+
+// Delete a hotel manager — DELETE /hotel-managers/{id}
+export const deleteManagerMember = createAsyncThunk(
+  'staff/deleteManagerMember',
+  async (staffId, { rejectWithValue }) => {
+    try {
+      await api.deleteManager(staffId);
+      return staffId;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.error || error.response?.data?.message || 'Failed to delete hotel manager');
     }
   }
 );
@@ -165,6 +201,22 @@ const staffSlice = createSlice({
         state.error = action.payload;
       })
 
+      // ────────────── FETCH HOTEL MANAGERS ──────────────
+      .addCase(fetchHotelManagers.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchHotelManagers.fulfilled, (state, action) => {
+        state.loading = false;
+        // Merge managers into staff list, replacing any existing manager entries
+        const nonManagers = state.staff.filter(s => s.role !== 'HOTEL_MANAGER');
+        state.staff = [...nonManagers, ...action.payload];
+      })
+      .addCase(fetchHotelManagers.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
       // ────────────── CREATE MANAGER MEMBER ──────────────
       .addCase(createManagerMember.pending, (state) => {
         state.loading = true;
@@ -175,6 +227,37 @@ const staffSlice = createSlice({
         state.staff.push(action.payload);
       })
       .addCase(createManagerMember.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // ────────────── UPDATE MANAGER MEMBER ──────────────
+      .addCase(updateManagerMember.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateManagerMember.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.staff.findIndex(s => s.id === action.payload.id);
+        if (index !== -1) {
+          state.staff[index] = action.payload;
+        }
+      })
+      .addCase(updateManagerMember.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // ────────────── DELETE MANAGER MEMBER ──────────────
+      .addCase(deleteManagerMember.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteManagerMember.fulfilled, (state, action) => {
+        state.loading = false;
+        state.staff = state.staff.filter(s => s.id !== action.payload);
+      })
+      .addCase(deleteManagerMember.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
