@@ -1,18 +1,137 @@
 import api from '../config/axiosConfig';
 
-// Base URL is already /api — do NOT prefix with /api here
+// ─── Owner Billing Status ─────────────────────────────────────────────────────
+
+// GET /owner-billing/{ownerId}
+// Response: OwnerBillingStatusDto {
+//   ownerId, stripeAccountId, stripeCustomerId, subscriptionId,
+//   subscriptionStatus, planCode, planName, currentPeriodStart, currentPeriodEnd,
+//   cancelAtPeriodEnd, detailsSubmitted, chargesEnabled, payoutsEnabled, createdAt, updatedAt
+// }
 export const getOwnerBilling = async (ownerId) => {
   const response = await api.get(`/owner-billing/${ownerId}`);
   return response.data;
 };
 
-export const createSubscriptionCheckout = async ({ ownerId, priceId }) => {
+// ─── Owner Analytics Dashboard ────────────────────────────────────────────────
+
+// GET /owner-billing/{ownerId}/dashboard?startDate=&endDate=
+// Response: OwnerDashboardDto {
+//   ownerId, ownerEmail, startDate, endDate, totalHotels, totalRevenue,
+//   subscription (OwnerBillingStatusDto),
+//   revenueByHotel: [{ hotelId, hotelName, revenue }],
+//   dailyRevenue:   [{ date, revenue }],
+//   monthlyRevenue: [{ date, revenue }]
+// }
+export const getOwnerDashboard = async (ownerId, startDate, endDate) => {
+  const params = {};
+  if (startDate) params.startDate = startDate;
+  if (endDate)   params.endDate   = endDate;
+
+  const response = await api.get(`/owner-billing/${ownerId}/dashboard`, { params });
+  return response.data;
+};
+
+// ─── Subscription Invoices & Payments ────────────────────────────────────────
+
+// GET /owner-billing/{ownerId}/invoices
+// Response: SubscriptionInvoiceDto[] {
+//   invoiceRecordId, ownerId, stripeInvoiceId, stripeSubscriptionId,
+//   invoiceNumber, status, currency, amountDue, amountPaid, amountRemaining,
+//   periodStart, periodEnd, hostedInvoiceUrl, invoicePdf, paidAt, createdAt
+// }
+export const getOwnerInvoices = async (ownerId) => {
+  const response = await api.get(`/owner-billing/${ownerId}/invoices`);
+  return Array.isArray(response.data) ? response.data : [];
+};
+
+// GET /owner-billing/{ownerId}/payments
+// Response: PaymentDto[] {
+//   paymentId, bookingId, userId, amount, currency,
+//   stripePaymentId, status, createdAt, updatedAt
+// }
+export const getOwnerPayments = async (ownerId) => {
+  const response = await api.get(`/owner-billing/${ownerId}/payments`);
+  return Array.isArray(response.data) ? response.data : [];
+};
+
+// ─── Subscription Plans ───────────────────────────────────────────────────────
+
+// GET /owner-billing/plans
+// Response: OwnerSubscriptionPlanDto[] {
+//   planCode, planName, description, priceMonthly, priceYearly,
+//   commissionRate, maxHotels, features: []
+// }
+export const listSubscriptionPlans = async () => {
+  const response = await api.get('/owner-billing/plans');
+  return Array.isArray(response.data) ? response.data : [];
+};
+
+// ─── Subscription Actions ─────────────────────────────────────────────────────
+
+// POST /owner-billing/subscriptions/checkout
+// Body:     { ownerId, planCode, priceId?, successUrl, cancelUrl }
+// Response: OwnerSubscriptionCheckoutResponseDto { checkoutUrl, sessionId }
+export const createSubscriptionCheckout = async ({ ownerId, planCode, priceId }) => {
   const base = window.location.origin;
   const response = await api.post('/owner-billing/subscriptions/checkout', {
     ownerId,
-    priceId,
+    planCode,
+    ...(priceId ? { priceId } : {}),
     successUrl: `${base}/payment-success`,
     cancelUrl:  `${base}/choose-plan`,
   });
+  return response.data;
+};
+
+// POST /owner-billing/subscriptions/change-plan
+// Body:     { ownerId, newPlanCode, newPriceId? }
+// Response: OwnerBillingStatusDto (updated billing status)
+export const changeSubscriptionPlan = async ({ ownerId, newPlanCode, newPriceId }) => {
+  const response = await api.post('/owner-billing/subscriptions/change-plan', {
+    ownerId,
+    newPlanCode,
+    ...(newPriceId ? { newPriceId } : {}),
+  });
+  return response.data;
+};
+
+// POST /owner-billing/subscriptions/cancel
+// Body:     { ownerId, cancelImmediately?, reason? }
+// Response: OwnerBillingStatusDto (updated billing status)
+export const cancelSubscription = async ({ ownerId, cancelImmediately = false, reason }) => {
+  const response = await api.post('/owner-billing/subscriptions/cancel', {
+    ownerId,
+    cancelImmediately,
+    ...(reason ? { reason } : {}),
+  });
+  return response.data;
+};
+
+// ─── Booking Payments ─────────────────────────────────────────────────────────
+
+// POST /payments/create
+// Body:     { bookingId, userId, amount, currency }
+// Response: PaymentDto { paymentId, bookingId, userId, amount, currency, stripePaymentId, status, createdAt }
+export const createPaymentWithCommission = async ({ bookingId, userId, amount, currency = 'usd' }) => {
+  const response = await api.post('/payments/create', { bookingId, userId, amount, currency });
+  return response.data;
+};
+
+// POST /payments/refund
+// Body:     RefundRequestDto (bookingId, paymentId, amount, reason)
+// Response: refund result object
+export const refundPayment = async (refundData) => {
+  const response = await api.post('/payments/refund', refundData);
+  return response.data;
+};
+
+// ─── Owner Billing Provision ──────────────────────────────────────────────────
+
+// POST /owner-billing/provision
+// Body:     { ownerId, email, businessName? }
+// Response: OwnerBillingProvisionResponseDto { stripeAccountId, onboardingUrl }
+export const provisionOwnerBilling = async ({ ownerId, email, businessName }) => {
+  const response = await api.post('/owner-billing/provision', { ownerId, email, businessName });
   return response.data;
 };

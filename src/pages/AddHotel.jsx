@@ -29,6 +29,7 @@ import {
   XCircle,
   Percent,
   ArrowLeft,
+  Shield,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { ConfirmModal } from "../components/common/ConfirmModal";
@@ -149,6 +150,31 @@ const RoomFormFields = ({ data, onChange, validationError, roomTypes = [], bedTy
         className={inputCls}
       />
     </div>
+    <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
+        <select
+          value={data.status || "ACTIVE"}
+          onChange={(e) => onChange({ ...data, status: e.target.value })}
+          className={inputCls}
+        >
+          <option value="ACTIVE">Active</option>
+          <option value="INACTIVE">Inactive</option>
+          <option value="maintenance">Maintenance</option>
+        </select>
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Availability</label>
+        <select
+          value={String(data.isAvailable ?? true)}
+          onChange={(e) => onChange({ ...data, isAvailable: e.target.value === "true" })}
+          className={inputCls}
+        >
+          <option value="true">Available</option>
+          <option value="false">Unavailable</option>
+        </select>
+      </div>
+    </div>
     <div className="space-y-1">
       <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Description</label>
       <textarea
@@ -183,11 +209,13 @@ export const AddHotel = () => {
     discountPercent: "",
     status: "ACTIVE",
     amenities: [],
+    policies: [],
     hotelImages: [],
     rooms: [],
   });
 
   const [amenityInput, setAmenityInput] = useState("");
+  const [policyInput, setPolicyInput] = useState("");
   // Files queued for upload in create-mode (uploaded after hotel is created)
   const [pendingFiles, setPendingFiles] = useState([]);
   const [roomValidationError, setRoomValidationError] = useState("");
@@ -237,6 +265,7 @@ export const AddHotel = () => {
         discountPercent: selectedHotel.discountPercentage || "",
         status: selectedHotel.status || "ACTIVE",
         amenities: selectedHotel.amenities || [],
+        policies: selectedHotel.policies || [],
         hotelImages: selectedHotel.hotelImages || [],
         rooms: [],
       });
@@ -259,6 +288,16 @@ export const AddHotel = () => {
 
   const handleRemoveAmenity = (amenity) =>
     setFormData((prev) => ({ ...prev, amenities: prev.amenities.filter((a) => a !== amenity) }));
+
+  const handleAddPolicy = () => {
+    const value = policyInput.trim();
+    if (!value || formData.policies.includes(value)) return;
+    setFormData((prev) => ({ ...prev, policies: [...prev.policies, value] }));
+    setPolicyInput("");
+  };
+
+  const handleRemovePolicy = (policy) =>
+    setFormData((prev) => ({ ...prev, policies: prev.policies.filter((p) => p !== policy) }));
 
   const handleRemoveHotelImage = (index) =>
     setFormData((prev) => ({ ...prev, hotelImages: prev.hotelImages.filter((_, i) => i !== index) }));
@@ -378,13 +417,13 @@ export const AddHotel = () => {
       discountPercentage: parseFloat(formData.discountPercent) || 0,
       status: formData.status || "ACTIVE",
       amenities: formData.amenities,
+      policies: formData.policies,
       hotelImages: pendingImages,
     };
 
     try {
       if (isUpdateMode) {
-        const result = dispatch(updateHotel({ hotelId, data: dataToSend }));
-        const resolved = await result;
+        const resolved = await dispatch(updateHotel({ hotelId, data: dataToSend }));
         if (resolved.meta.requestStatus === "fulfilled") {
           let successMsg = "Hotel updated successfully!";
           if (formData.rooms.length > 0) {
@@ -623,6 +662,36 @@ export const AddHotel = () => {
                   </div>
                 )}
               </div>
+            </Section>
+
+            {/* Policies */}
+            <Section icon={Shield} title="Hotel Policies">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="e.g. No smoking, Check-in from 3 PM"
+                  value={policyInput}
+                  onChange={(e) => setPolicyInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddPolicy())}
+                  className={inputCls}
+                />
+                <button type="button" onClick={handleAddPolicy} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm hover:bg-slate-800 transition-colors">
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+              {formData.policies.length > 0 && (
+                <div className="space-y-1.5 mt-2">
+                  {formData.policies.map((policy) => (
+                    <div key={policy} className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <span className="flex-1 text-sm text-slate-700">{policy}</span>
+                      <button type="button" onClick={() => handleRemovePolicy(policy)} className="text-slate-300 hover:text-red-500 transition-colors">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Section>
 
             {/* Location */}
@@ -952,6 +1021,36 @@ export const AddHotel = () => {
                 </div>
               )}
             </div>
+          </Section>
+
+          {/* Policies */}
+          <Section icon={Shield} title="Hotel Policies">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="e.g. No smoking, Check-in from 3 PM"
+                value={policyInput}
+                onChange={(e) => setPolicyInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddPolicy())}
+                className={inputCls}
+              />
+              <button type="button" onClick={handleAddPolicy} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm hover:bg-slate-800 transition-colors">
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            {formData.policies.length > 0 && (
+              <div className="space-y-1.5 mt-2">
+                {formData.policies.map((policy) => (
+                  <div key={policy} className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span className="flex-1 text-sm text-slate-700">{policy}</span>
+                    <button type="button" onClick={() => handleRemovePolicy(policy)} className="text-slate-300 hover:text-red-500 transition-colors">
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </Section>
 
           {/* Location */}

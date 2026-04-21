@@ -147,6 +147,49 @@ export const deleteHotelRoom = createAsyncThunk(
   }
 );
 
+/* ============================ HOTEL IMAGE THUNKS ============================ */
+
+// GET /partneredhotel/{hotelId}/images
+export const fetchHotelImages = createAsyncThunk(
+  "partneredHotel/fetchHotelImages",
+  async (hotelId, { rejectWithValue }) => {
+    try {
+      const images = await api.getHotelImages(hotelId);
+      return { hotelId, images: Array.isArray(images) ? images : [] };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || "Failed to fetch hotel images");
+    }
+  }
+);
+
+// POST /partneredhotel/{hotelId}/images  multipart → { imageId, imageUrl }
+export const uploadHotelImageFile = createAsyncThunk(
+  "partneredHotel/uploadHotelImage",
+  async ({ hotelId, file }, { rejectWithValue }) => {
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const response = await api.uploadHotelImage(hotelId, fd);
+      return { hotelId, image: response };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || "Failed to upload hotel image");
+    }
+  }
+);
+
+// DELETE /partneredhotel/hotel-images/{imageId}
+export const deleteHotelImageFile = createAsyncThunk(
+  "partneredHotel/deleteHotelImage",
+  async ({ imageId, hotelId }, { rejectWithValue }) => {
+    try {
+      await api.deleteHotelImage(imageId);
+      return { imageId, hotelId };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || "Failed to delete hotel image");
+    }
+  }
+);
+
 /* ============================ ROOM IMAGE THUNKS ============================ */
 
 // GET /rooms/{roomId}/images → [{ imageId, imageUrl }]
@@ -200,6 +243,7 @@ const partneredHotelSlice = createSlice({
     selectedRoom: null,
     hotelRooms: [], // Rooms for the currently selected hotel
     roomImages: {}, // { roomId: [images] }
+    hotelImages: {}, // { hotelId: [images] }
     loading: false,
     error: null,
   },
@@ -220,6 +264,7 @@ const partneredHotelSlice = createSlice({
       state.selectedRoom = null;
       state.hotelRooms = [];
       state.roomImages = {};
+      state.hotelImages = {};
       state.loading = false;
       state.error = null;
     },
@@ -302,6 +347,42 @@ const partneredHotelSlice = createSlice({
         delete state.roomImages[action.payload];
       })
 
+      // ────────────── HOTEL IMAGES ──────────────
+      .addCase(fetchHotelImages.fulfilled, (state, action) => {
+        state.hotelImages[action.payload.hotelId] = action.payload.images;
+      })
+      .addCase(uploadHotelImageFile.fulfilled, (state, action) => {
+        const { hotelId, image } = action.payload;
+        state.hotelImages[hotelId] = [...(state.hotelImages[hotelId] || []), image];
+        // also update the hotel's hotelImages array if it's loaded
+        const hotel = state.hotels.find(h => (h.partneredHotelId || h.id) === hotelId);
+        if (hotel) {
+          hotel.hotelImages = [...(hotel.hotelImages || []), image];
+        }
+        if (state.selectedHotel && (state.selectedHotel.partneredHotelId || state.selectedHotel.id) === hotelId) {
+          state.selectedHotel.hotelImages = [...(state.selectedHotel.hotelImages || []), image];
+        }
+      })
+      .addCase(deleteHotelImageFile.fulfilled, (state, action) => {
+        const { imageId, hotelId } = action.payload;
+        if (state.hotelImages[hotelId]) {
+          state.hotelImages[hotelId] = state.hotelImages[hotelId].filter(
+            (img) => img.imageId !== imageId && img.id !== imageId
+          );
+        }
+        const hotel = state.hotels.find(h => (h.partneredHotelId || h.id) === hotelId);
+        if (hotel?.hotelImages) {
+          hotel.hotelImages = hotel.hotelImages.filter(
+            (img) => img.imageId !== imageId && img.id !== imageId
+          );
+        }
+        if (state.selectedHotel) {
+          state.selectedHotel.hotelImages = (state.selectedHotel.hotelImages || []).filter(
+            (img) => img.imageId !== imageId && img.id !== imageId
+          );
+        }
+      })
+
       // ────────────── ROOM IMAGES ──────────────
       .addCase(fetchRoomImages.fulfilled, (state, action) => {
         state.roomImages[action.payload.roomId] = action.payload.images;
@@ -346,3 +427,6 @@ const partneredHotelSlice = createSlice({
 
 export const { clearHotelError, clearSelectedRoom, clearSelectedHotel, clearAllHotels } = partneredHotelSlice.actions;
 export default partneredHotelSlice.reducer;
+
+export const selectHotelImages = (hotelId) => (state) =>
+  state.partneredHotel.hotelImages[hotelId] || [];

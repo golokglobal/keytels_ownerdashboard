@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronRight,
   BookOpen,
+  CreditCard,
 } from 'lucide-react';
 
 const DOCS = [
@@ -235,20 +236,10 @@ export const Sidebar = ({ isOpen, onClose }) => {
       label: 'Rooms and rates',
       icon: Bed,
       children: [
-        { path: '/rooms', label: 'Rates and availability' },
-        { path: '/rooms', label: 'Room types and rate plans' },
-        { path: '/rooms', label: 'Rate and availability observations' },
-        { path: '/checkins-outs', label: 'Bulk inventory and availability' },
-        { path: '/checkins-outs', label: 'Open and close rooms' },
-        { path: '/rooms', label: 'Bulk rates and restrictions' },
+        { path: '/rooms', label: 'Rooms' },
+        { path: '/checkins-outs', label: 'Check-ins & Outs' },
         { path: '/settings', label: 'Cancellation policies' },
-        { path: '/settings', label: 'Cancellation penalty waiver' },
-        { path: '/financials', label: 'Guest and occupancy fees' },
-        { path: '/rooms', label: 'Rates and availability report' },
-        { path: '/rooms', label: 'Automatic rate match' },
-        { path: '/settings', label: 'Auto renewal' },
-        { path: '/support', label: 'Connectivity provider guide' },
-        { path: '/hotels', label: 'View change history' },
+        { path: '/financials', label: 'Fees & Revenue' },
       ],
     },
     {
@@ -272,10 +263,8 @@ export const Sidebar = ({ isOpen, onClose }) => {
       icon: Users,
       badge: totalGuests,
       children: [
-        { path: '/guests', label: 'Messages' },
-        { path: '/guests', label: 'In-house feedback' },
-        { path: '/reviews', label: 'Post-stay reviews' },
-        { path: '/reviews', label: 'Awards and downloads' },
+        { path: '/guests', label: 'Guests & Messages' },
+        { path: '/reviews', label: 'Reviews' },
       ],
     },
     {
@@ -284,19 +273,18 @@ export const Sidebar = ({ isOpen, onClose }) => {
       label: 'Payments',
     },
     {
+      path: '/subscription',
+      icon: CreditCard,
+      label: 'Subscription',
+    },
+    {
       label: 'Property details',
       icon: Building2,
       children: [
-        { path: '/hotels', label: 'Overview' },
-        { path: '/hotels', label: 'Property administration' },
-        { path: '/add-hotel', label: 'Photos' },
-        { path: '/add-hotel', label: 'Property amenities' },
-        { path: '/rooms', label: 'Room amenities' },
-        { path: '/hotels', label: 'Points of interest' },
-        { path: '/settings', label: 'Fees, policies and settings' },
-        { path: '/hotels', label: 'Renovations and closures' },
-        { path: '/hotels', label: 'Change history' },
-        { path: '/hotels', label: 'Photos administration' },
+        { path: '/hotels', label: 'My Properties' },
+        { path: '/add-hotel', label: 'Add / Edit Property' },
+        { path: '/rooms', label: 'Rooms & Amenities' },
+        { path: '/settings', label: 'Fees & Policies' },
       ],
     },
     {
@@ -316,6 +304,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
       children: [
         { path: '/staff', label: 'Staff' },
         { path: '/settings', label: 'Settings' },
+        { path: '/subscription', label: 'Subscription & Billing' },
         { path: '/add-hotel', label: 'Add a property' },
         { path: '/catalog', label: 'Catalog management' },
       ],

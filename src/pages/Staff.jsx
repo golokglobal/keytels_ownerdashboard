@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Users, Plus, Edit, Trash2, X, Mail, Shield, Building, ChevronDown, Check } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { DataTable } from '../components/shared/DataTable';
+import { HotelDropdown } from '../components/shared/HotelDropdown';
 import { StaffSkeleton } from '../components/common/Skeleton';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import {
@@ -313,54 +314,12 @@ export const Staff = () => {
 
       {/* Hotel selector dropdown — owners only */}
       {isOwner && ownerHotels.length > 0 && (
-        <div className="relative w-72" data-hotel-dropdown>
-          <button
-            onClick={() => setDropdownOpen((o) => !o)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 ${activeColor.border} bg-white shadow-sm hover:shadow-md transition-all`}
-          >
-            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${activeColor.dot}`} />
-            <span className="flex-1 text-left text-sm font-semibold text-slate-800 truncate">
-              {getHotelName(viewHotelId)}
-            </span>
-            {loading && (
-              <span className={`w-4 h-4 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin shrink-0`} />
-            )}
-            <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
-          </button>
-
-          <AnimatePresence>
-            {dropdownOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                transition={{ duration: 0.14 }}
-                className="absolute z-30 mt-2 w-full bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden"
-              >
-                {ownerHotels.map((h, idx) => {
-                  const hid = getHotelId(h);
-                  const isActive = hid === viewHotelId;
-                  const color = getHotelColor(idx);
-                  return (
-                    <button
-                      key={hid}
-                      onClick={() => { handleSelectHotel(hid); setDropdownOpen(false); }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
-                        isActive ? `${color.light} font-semibold` : 'hover:bg-slate-50'
-                      }`}
-                    >
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${color.dot}`} />
-                      <span className={`flex-1 text-left truncate ${isActive ? color.text : 'text-slate-700'}`}>
-                        {h.name || h.hotelName || hid}
-                      </span>
-                      {isActive && <Check className={`w-4 h-4 shrink-0 ${color.text}`} />}
-                    </button>
-                  );
-                })}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        <HotelDropdown
+          hotels={ownerHotels}
+          activeId={viewHotelId}
+          onChange={handleSelectHotel}
+          className="w-full sm:w-96"
+        />
       )}
 
       {/* No hotels available */}

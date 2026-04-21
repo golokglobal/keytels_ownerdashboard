@@ -160,11 +160,14 @@ export const getCurrentUser = () => {
 
 export const getUserRole = () => localStorage.getItem('userRole');
 
+// GET /users/profile
+// Response: { user: UserDto, timestamp }  OR  UserDto directly
 export const getProfileApi = async () => {
   try {
     const response = await api.get('/users/profile');
-    localStorage.setItem('user', JSON.stringify(response.data));
-    return { success: true, user: response.data };
+    const user = response.data?.user ?? response.data;
+    localStorage.setItem('user', JSON.stringify(user));
+    return { success: true, user };
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Failed to fetch profile');
   }
@@ -173,8 +176,9 @@ export const getProfileApi = async () => {
 export const updateProfileApi = async (profileData) => {
   try {
     const response = await api.put('/users/profile', profileData);
-    localStorage.setItem('user', JSON.stringify(response.data));
-    return { success: true, user: response.data };
+    const user = response.data?.user ?? response.data;
+    localStorage.setItem('user', JSON.stringify(user));
+    return { success: true, user };
   } catch (error) {
     throw new Error(error.response?.data?.message || error.response?.data?.error || 'Failed to update profile');
   }
@@ -200,9 +204,11 @@ export const uploadProfilePhotoApi = async (photoUrl) => {
   }
 };
 
+// NOTE: /owners/wallet is not yet implemented in the backend.
+// Keeping this stub to avoid breaking imports; remove once backend adds the endpoint.
 export const getOwnerWallet = async () => {
-  const response = await api.get('/owners/wallet');
-  return response.data;
+  console.warn('getOwnerWallet: endpoint /owners/wallet is not implemented in the backend');
+  return null;
 };
 
 export const changePasswordApi = async (currentPassword, newPassword, confirmPassword) => {
