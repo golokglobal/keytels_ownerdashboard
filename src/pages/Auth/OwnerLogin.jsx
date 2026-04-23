@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Hotel, Mail, Lock, ArrowRight, Eye, EyeOff, Crown, Shield } from 'lucide-react';
 import { signinOwner } from '../../store/slices/userSlice';
@@ -9,6 +9,8 @@ import { Loader } from '../../components/common/Loader';
 export const OwnerLogin = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/dashboard';
 
   const [formData, setFormData] = useState({
     username: '',
@@ -44,8 +46,8 @@ export const OwnerLogin = () => {
 
         // Redirect to owner dashboard
         if (roleFromServer === 'HOTEL_OWNER') {
-          console.log('🔀 Redirecting to owner dashboard...');
-          navigate('/dashboard');
+          console.log('🔀 Redirecting to:', redirectTo);
+          navigate(redirectTo);
         } else {
           console.warn('⚠️ Unexpected role for owner login:', roleFromServer);
           setError('Invalid account type. Please use the correct login page.');

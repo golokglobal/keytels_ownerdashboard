@@ -1,6 +1,7 @@
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Clock, Hotel, Loader2, RefreshCw, Zap, AlertCircle } from "lucide-react";
+import { Clock, Hotel, Loader2, RefreshCw, Zap, AlertCircle, LayoutDashboard } from "lucide-react";
 import {
   fetchOwnerBilling,
   startCheckout,
@@ -12,28 +13,29 @@ import {
 import { selectUserId } from "../../store/slices/userSlice";
 
 export const PaymentPending = () => {
-  const dispatch = useDispatch();
-  const ownerId = useSelector(selectUserId);
-  const billing = useSelector(selectBilling);
-  const billingLoading = useSelector(selectBillingLoading);
+  const dispatch        = useDispatch();
+  const navigate        = useNavigate();
+  const ownerId         = useSelector(selectUserId);
+  const billing         = useSelector(selectBilling);
+  const billingLoading  = useSelector(selectBillingLoading);
   const checkoutLoading = useSelector(selectCheckoutLoading);
-  const checkoutError = useSelector(selectCheckoutError);
+  const checkoutError   = useSelector(selectCheckoutError);
 
-  // Re-check billing status (in case Stripe has confirmed payment)
   const handleRefresh = () => {
     if (ownerId) dispatch(fetchOwnerBilling(ownerId));
   };
 
-  // Create a new checkout session with the same priceId
   const handleNewCheckout = async () => {
-    if (!ownerId || !billing?.subscriptionPriceId) return;
-    const result = await dispatch(startCheckout({
-      ownerId,
-      priceId: billing.subscriptionPriceId,
-    }));
-    if (startCheckout.fulfilled.match(result)) {
-      const { checkoutUrl } = result.payload;
-      if (checkoutUrl) window.location.href = checkoutUrl;
+    if (!ownerId) return;
+    const planCode = billing?.subscriptionPlan || billing?.plan?.code;
+    const priceId  = billing?.subscriptionPriceId;
+    try {
+      const data = await dispatch(
+        startCheckout({ ownerId, planCode, priceId })
+      ).unwrap();
+      if (data?.checkoutUrl) window.location.href = data.checkoutUrl;
+    } catch {
+      // checkoutError already in Redux state
     }
   };
 
@@ -88,12 +90,21 @@ export const PaymentPending = () => {
 
             <button
               onClick={handleNewCheckout}
-              disabled={checkoutLoading || !billing?.subscriptionPriceId}
+              disabled={checkoutLoading}
               className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/20"
             >
               {checkoutLoading
                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting…</>
                 : <><Zap className="w-4 h-4" /> Start New Checkout Session</>}
+            </button>
+
+            {/* Skip — go straight to dashboard */}
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-slate-500 hover:text-slate-300 text-sm transition-colors"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              Continue to dashboard without subscribing
             </button>
           </div>
 

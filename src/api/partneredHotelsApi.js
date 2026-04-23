@@ -48,6 +48,31 @@ export const deleteRoom = (roomId) =>
   api.delete(`/partneredhotel/rooms/${roomId}`).then(res => res.data);
 
 
+/* ============================ HOTEL IMAGES ============================ */
+
+// GET /partneredhotel/{hotelId}/images → [{ imageId, imageUrl }]
+export const getHotelImages = (hotelId) =>
+  api.get(`/partneredhotel/${hotelId}/images`)
+    .then(res => Array.isArray(res.data) ? res.data : [])
+    .catch(err => {
+      if (err.response?.status === 204) return [];
+      throw err;
+    });
+
+// POST /partneredhotel/{hotelId}/images  multipart/form-data (field: "file") → { imageId, imageUrl }
+export const uploadHotelImage = (hotelId, formData) =>
+  api.post(`/partneredhotel/${hotelId}/images`, formData).then(res => res.data);
+
+// GET /partneredhotel/hotel-images/{imageId}/download → binary / redirect
+export const downloadHotelImage = (imageId) =>
+  api.get(`/partneredhotel/hotel-images/${imageId}/download`, { responseType: 'blob' })
+    .then(res => res.data);
+
+// DELETE /partneredhotel/hotel-images/{imageId} → { message }
+export const deleteHotelImage = (imageId) =>
+  api.delete(`/partneredhotel/hotel-images/${imageId}`).then(res => res.data);
+
+
 /* ============================ BOOKINGS ============================ */
 
 // Create a booking
@@ -69,9 +94,7 @@ export const getRoomImages = (roomId) =>
 // POST /partneredhotel/rooms/{roomId}/images  multipart/form-data (field: "file")
 // → { imageId, imageUrl }
 export const uploadRoomImage = (roomId, formData) =>
-  api.post(`/partneredhotel/rooms/${roomId}/images`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }).then(res => res.data);
+  api.post(`/partneredhotel/rooms/${roomId}/images`, formData).then(res => res.data);
 
 // GET /partneredhotel/rooms/images/{imageId}/download → binary (used for explicit download)
 export const downloadRoomImage = (imageId) =>

@@ -32,6 +32,7 @@ const CheckinsOuts   = lazy(() => import('./pages/CheckinsOuts').then(m => ({ de
 const CatalogManagement = lazy(() => import('./pages/CatalogManagement').then(m => ({ default: m.CatalogManagement })));
 const HotelDetail       = lazy(() => import('./pages/HotelDetail').then(m => ({ default: m.HotelDetail })));
 const Marketing         = lazy(() => import('./pages/Marketing').then(m => ({ default: m.Marketing })));
+const Subscription      = lazy(() => import('./pages/Subscription').then(m => ({ default: m.Subscription })));
 
 /* Listens for auth:logout events fired by the axios interceptor */
 function AuthLogoutListener() {
@@ -90,6 +91,7 @@ function App() {
             <Route path="catalog" element={<CatalogManagement />} />
             <Route path="hotels/:hotelId" element={<HotelDetail />} />
             <Route path="marketing" element={<Marketing />} />
+            <Route path="subscription" element={<Subscription />} />
           </Route>
 
           {/* Stripe redirect — must be public (user lands here from Stripe) */}

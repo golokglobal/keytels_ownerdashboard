@@ -22,6 +22,7 @@ import { toast } from "react-hot-toast";
 import { ConfirmModal } from "../components/common/ConfirmModal";
 import { selectPrimaryHotelId } from "../store/slices/userSlice";
 import { S3ImageUpload } from "../components/shared/S3ImageUpload";
+import { HotelDropdown, getHotelName as getHName } from "../components/shared/HotelDropdown";
 
 /* ── Shared input class ── */
 const inputCls =
@@ -561,9 +562,7 @@ const RoomPanel = ({ hotel }) => {
                 label="Upload room photo"
                 uploadFn={async (file) => {
                   const rid = imageRoom.roomId || imageRoom.id;
-                  const fd = new FormData();
-                  fd.append('file', file);
-                  const result = await dispatch(uploadRoomImage({ roomId: rid, formData: fd })).unwrap();
+                  const result = await dispatch(uploadRoomImage({ roomId: rid, file })).unwrap();
                   dispatch(fetchRoomImages(rid));
                   return result?.imageUrl || result?.url || '';
                 }}
@@ -623,15 +622,23 @@ export const RoomsManagement = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { hotels: ownerHotels, loading } = useSelector((s) => s.partneredhotels);
-  const activeHotelId = useSelector(selectPrimaryHotelId);
+  const defaultHotelId = useSelector(selectPrimaryHotelId);
+
+  const [selectedHotelId, setSelectedHotelId] = useState(null);
 
   useEffect(() => {
     dispatch(fetchOwnerHotels());
   }, [dispatch]);
 
-  const activeHotel = ownerHotels.find(
-    (h) => (h.partneredHotelId || h.id) === activeHotelId
-  ) || null;
+  // Once hotels load, default to the primary hotel (or first one)
+  useEffect(() => {
+    if (ownerHotels.length > 0 && !selectedHotelId) {
+      const preferred = ownerHotels.find((h) => (h.partneredHotelId || h.id) === defaultHotelId);
+      setSelectedHotelId((preferred || ownerHotels[0]).partneredHotelId || (preferred || ownerHotels[0]).id);
+    }
+  }, [ownerHotels, defaultHotelId, selectedHotelId]);
+
+  const activeHotel = ownerHotels.find((h) => (h.partneredHotelId || h.id) === selectedHotelId) || null;
 
   return (
     <div className="space-y-6">
@@ -678,30 +685,43 @@ export const RoomsManagement = () => {
         </div>
       )}
 
-      {!activeHotelId && ownerHotels.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 text-center">
-          <Building2 className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-slate-900 mb-1">Select a hotel</h3>
-          <p className="text-slate-600 text-sm">Choose a hotel from the header to manage rooms.</p>
-        </div>
-      )}
+      {/* ── Hotel dropdown + room panel ── */}
+      {ownerHotels.length > 0 && (
+        <div className="space-y-4">
+          {/* Hotel selector */}
+          <HotelDropdown
+            hotels={ownerHotels}
+            activeId={selectedHotelId}
+            onChange={setSelectedHotelId}
+            className="w-full sm:w-96"
+          />
 
-      {/* Room panel for active hotel */}
-      {ownerHotels.length > 0 && activeHotelId && (
-        <AnimatePresence mode="wait">
-          {activeHotel && (
-            <motion.div
-              key={activeHotelId}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.18, ease: "easeInOut" }}
-              className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
-            >
-              <RoomPanel hotel={activeHotel} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+          {/* Room panel */}
+          <AnimatePresence mode="wait">
+            {activeHotel && (
+              <motion.div
+                key={selectedHotelId}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18, ease: "easeInOut" }}
+                className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
+              >
+                {/* Hotel name banner */}
+                <div className="px-6 py-3 border-b border-slate-100 flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="text-sm font-semibold text-slate-800">
+                    {getHName(activeHotel)}
+                  </span>
+                  {activeHotel.location && (
+                    <span className="text-xs text-slate-400">· {activeHotel.location}</span>
+                  )}
+                </div>
+                <RoomPanel hotel={activeHotel} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       )}
     </div>
   );
