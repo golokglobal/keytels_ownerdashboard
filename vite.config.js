@@ -10,8 +10,8 @@ const stripWWWAuthenticate = (proxy) => {
   });
 };
 
- const BACKEND = 'https://desiney.berymo.com';
-//const BACKEND = 'http://localhost:8080';
+// SERVER (remote) target — keep commented for local dev
+// const BACKEND = 'https://desiney.berymo.com';
 export default defineConfig({
   plugins: [react()],
 
@@ -28,7 +28,7 @@ export default defineConfig({
       // ───────────────────────────────────────────────
       '/api/owner-billing': {
         target: 'http://localhost:8089',  // billing service
-        // target: BACKEND,
+        // target: BACKEND, // SERVER
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
@@ -36,7 +36,7 @@ export default defineConfig({
 
       '/api/owners': {
         target: 'http://localhost:8083',  // auth service — owner data lives here
-        // target: BACKEND,
+        // target: BACKEND, // SERVER
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
@@ -44,7 +44,7 @@ export default defineConfig({
 
       '/api/staff': {
         target: 'http://localhost:8083',  // staff service
-        // target: BACKEND,
+        // target: BACKEND, // SERVER
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
@@ -52,63 +52,63 @@ export default defineConfig({
 
       '/api/hotel-managers': {
         target: 'http://localhost:8083',  // staff service
-        // target: BACKEND,
+        // target: BACKEND, // SERVER
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/api/users': {
-        // target: BACKEND,
         target: 'http://localhost:8084',
+        // target: BACKEND, // SERVER
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/api/partneredhotel': {
-        // target: BACKEND,
         target: 'http://localhost:8084',
+        // target: BACKEND, // SERVER
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/api/hotels': {
-        // target: BACKEND,
         target: 'http://localhost:8084',
+        // target: BACKEND, // SERVER
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/api/bookings': {
-        // target: BACKEND,
         target: 'http://localhost:8084',
+        // target: BACKEND, // SERVER
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/partneredhotel': {
-        // target: BACKEND,
         target: 'http://localhost:8084',
+        // target: BACKEND, // SERVER
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/users/admin': {
-        // target: BACKEND,
         target: 'http://localhost:8080',
+        // target: BACKEND, // SERVER
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
       },
 
       '/auth': {
-        // target: BACKEND,
         target: 'http://localhost:8080',
+        // target: BACKEND, // SERVER
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
@@ -116,8 +116,8 @@ export default defineConfig({
 
       // Generic fallback for anything else under /api (MUST be last)
       '/api': {
-        // target: BACKEND,
         target: 'http://localhost:8080',
+        // target: BACKEND, // SERVER
         changeOrigin: true,
         secure: false,
         configure: stripWWWAuthenticate,
