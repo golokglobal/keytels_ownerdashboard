@@ -394,11 +394,24 @@ export const AddHotel = () => {
     e.preventDefault();
     setSubmitError("");
 
-    if (!isUpdateMode && formData.rooms.length === 0) {
-      const msg = "Please add at least one room.";
-      toast.error(msg);
-      setSubmitError(msg);
-      return;
+    let effectiveRooms = formData.rooms;
+    if (!isUpdateMode && effectiveRooms.length === 0) {
+      if (roomData.roomType && roomData.capacity && roomData.pricePerNight && roomData.totalRooms) {
+        const autoRoom = {
+          ...roomData,
+          capacity: Number(roomData.capacity),
+          pricePerNight: Number(roomData.pricePerNight),
+          totalRooms: Number(roomData.totalRooms) || 1,
+          id: Date.now(),
+        };
+        effectiveRooms = [autoRoom];
+        setFormData((prev) => ({ ...prev, rooms: effectiveRooms }));
+      } else {
+        const msg = "Please add at least one room.";
+        toast.error(msg);
+        setSubmitError(msg);
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -480,7 +493,7 @@ export const AddHotel = () => {
 
           /* Create rooms separately */
           const roomResults = await Promise.all(
-            formData.rooms.map((room) =>
+            effectiveRooms.map((room) =>
               dispatch(createHotelRoom({
                 hotelId: createdHotelId,
                 data: {

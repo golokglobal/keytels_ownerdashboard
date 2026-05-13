@@ -108,12 +108,10 @@ export const Subscription = () => {
   const status      = billing?.subscriptionStatus;
   const statusConf  = status ? STATUS_CONFIG[status] : null;
 
-  // billing.plan = what the owner currently has access to (active plan)
-  // billing.subscriptionPlan = what they selected/are paying for (may be pending)
-  const currentCode = billing?.plan?.code;   // active plan
+  const currentCode = billing?.plan?.code;
   const pendingCode = (status === "CHECKOUT_PENDING" && billing?.subscriptionPlan !== currentCode)
     ? billing?.subscriptionPlan
-    : null;                                   // plan awaiting Stripe payment
+    : null;
 
   const currentPlanMeta = plans.find((p) => p.code === currentCode);
 
@@ -158,7 +156,7 @@ export const Subscription = () => {
               <div>
                 <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Current Plan</p>
                 <h2 className="text-xl font-bold text-slate-800 mt-0.5">
-                  {currentPlanMeta?.name || billing.subscriptionPlan || "—"}
+                  {currentPlanMeta?.name || billing.plan?.name || "—"}
                 </h2>
                 {currentPlanMeta && (() => {
                   const price = getPriceDisplay(currentPlanMeta);
@@ -219,12 +217,12 @@ export const Subscription = () => {
           {/* Billing metadata */}
           <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
-              <p className="text-xs text-slate-400">Started</p>
-              <p className="text-sm font-medium text-slate-600 mt-0.5">{fmt(billing.subscriptionStartedAt)}</p>
+              <p className="text-xs text-slate-400">Period Start</p>
+              <p className="text-sm font-medium text-slate-600 mt-0.5">{fmt(billing.subscriptionCurrentPeriodStart)}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-400">Last Updated</p>
-              <p className="text-sm font-medium text-slate-600 mt-0.5">{fmt(billing.subscriptionUpdatedAt)}</p>
+              <p className="text-xs text-slate-400">Period End</p>
+              <p className="text-sm font-medium text-slate-600 mt-0.5">{fmt(billing.subscriptionCurrentPeriodEnd)}</p>
             </div>
             <div>
               <p className="text-xs text-slate-400">Stripe Customer</p>
@@ -277,6 +275,7 @@ export const Subscription = () => {
             : plans.map((plan, i) => {
                 const style       = PLAN_STYLE[plan.code] || PLAN_STYLE.SINGLE;
                 const isCurrent   = currentCode === plan.code;
+                const isPending   = pendingCode === plan.code;
                 const isLoading   = checkoutLoading && selectedCode === plan.code;
                 const price       = getPriceDisplay(plan);
                 const enabled     = getEnabledFeatures(plan);
@@ -292,9 +291,11 @@ export const Subscription = () => {
                     className={`relative rounded-2xl border flex flex-col transition-all
                       ${isCurrent
                         ? "border-indigo-400 bg-indigo-50 shadow-md shadow-indigo-100"
-                        : style.highlight
-                          ? "border-blue-300 bg-blue-50/50"
-                          : "border-slate-200 bg-white"}`}
+                        : isPending
+                          ? "border-yellow-400 bg-yellow-50/40 shadow-md shadow-yellow-100"
+                          : style.highlight
+                            ? "border-blue-300 bg-blue-50/50"
+                            : "border-slate-200 bg-white"}`}
                   >
                     {/* Badges */}
                     {isCurrent && (
@@ -302,7 +303,12 @@ export const Subscription = () => {
                         Current Plan
                       </span>
                     )}
-                    {!isCurrent && style.badge && (
+                    {isPending && (
+                      <span className="absolute -top-3 left-4 px-3 py-0.5 bg-yellow-500 text-white text-[10px] font-bold rounded-full shadow">
+                        Payment Pending
+                      </span>
+                    )}
+                    {!isCurrent && !isPending && style.badge && (
                       <span className={`absolute -top-3 left-4 px-3 py-0.5 text-white text-[10px] font-bold rounded-full shadow
                         ${style.highlight ? "bg-gradient-to-r from-blue-500 to-purple-500" : "bg-gradient-to-r from-purple-600 to-indigo-600"}`}>
                         {style.badge}
@@ -410,6 +416,18 @@ export const Subscription = () => {
                           <CheckCircle className="w-4 h-4" />
                           Your current plan
                         </div>
+                      ) : isPending ? (
+                        <button
+                          onClick={() => handleChangePlan(plan)}
+                          disabled={checkoutLoading}
+                          className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl font-semibold text-sm bg-yellow-500 hover:bg-yellow-600 text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isLoading ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting…</>
+                          ) : (
+                            <><Clock className="w-4 h-4" /> Complete Payment</>
+                          )}
+                        </button>
                       ) : (
                         <button
                           onClick={() => handleChangePlan(plan)}
