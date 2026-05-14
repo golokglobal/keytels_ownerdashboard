@@ -10,6 +10,8 @@ import {
   fetchOwnerBilling,
   fetchSubscriptionPlans,
   startCheckout,
+  changePlan,
+  cancelPlan,
   selectBilling,
   selectBillingLoading,
   selectPlans,
@@ -17,6 +19,8 @@ import {
   selectPlansError,
   selectCheckoutLoading,
   selectCheckoutError,
+  selectPlanActionLoading,
+  selectPlanActionError,
 } from "../store/slices/paymentsSlice";
 import { selectUserId } from "../store/slices/userSlice";
 import {
@@ -76,32 +80,43 @@ export const Subscription = () => {
   const plans           = useSelector(selectPlans);
   const plansLoading    = useSelector(selectPlansLoading);
   const plansError      = useSelector(selectPlansError);
-  const checkoutLoading = useSelector(selectCheckoutLoading);
-  const checkoutError   = useSelector(selectCheckoutError);
+  const checkoutLoading    = useSelector(selectCheckoutLoading);
+  const checkoutError      = useSelector(selectCheckoutError);
+  const planActionLoading  = useSelector(selectPlanActionLoading);
+  const planActionError    = useSelector(selectPlanActionError);
   const [selectedCode, setSelectedCode] = useState(null);
+  const [cancelConfirm, setCancelConfirm] = useState(false);
 
   useEffect(() => {
     if (ownerId && !billing)  dispatch(fetchOwnerBilling(ownerId));
     if (!plans.length)         dispatch(fetchSubscriptionPlans());
   }, [dispatch, ownerId, billing, plans.length]);
 
-  const PRICE_MAP = {
-    SINGLE:    import.meta.env.VITE_STRIPE_PRICE_SINGLE,
-    MULTI:     import.meta.env.VITE_STRIPE_PRICE_MULTI,
-    FRANCHISE: import.meta.env.VITE_STRIPE_PRICE_FRANCHISE,
+  const handleChangePlan = async (plan) => {
+    if (!ownerId || checkoutLoading || planActionLoading) return;
+    setSelectedCode(plan.code);
+    const priceId = plan.priceId;
+    try {
+      if (billing?.subscriptionActive) {
+        await dispatch(changePlan({ ownerId, newPlanCode: plan.code, newPriceId: priceId })).unwrap();
+        dispatch(fetchOwnerBilling(ownerId));
+      } else {
+        const data = await dispatch(startCheckout({ ownerId, planCode: plan.code, priceId })).unwrap();
+        if (data?.checkoutUrl) window.location.href = data.checkoutUrl;
+      }
+    } catch {
+      // error surfaced via planActionError / checkoutError selectors
+    }
   };
 
-  const handleChangePlan = async (plan) => {
-    if (!ownerId || checkoutLoading) return;
-    setSelectedCode(plan.code);
-    const priceId = plan.priceId || PRICE_MAP[plan.code];
+  const handleCancelPlan = async () => {
+    if (!ownerId || planActionLoading) return;
     try {
-      const data = await dispatch(
-        startCheckout({ ownerId, planCode: plan.code, priceId })
-      ).unwrap();
-      if (data?.checkoutUrl) window.location.href = data.checkoutUrl;
+      await dispatch(cancelPlan({ ownerId, cancelImmediately: false })).unwrap();
+      dispatch(fetchOwnerBilling(ownerId));
+      setCancelConfirm(false);
     } catch {
-      // error in Redux state
+      setCancelConfirm(false);
     }
   };
 
@@ -238,6 +253,38 @@ export const Subscription = () => {
             </div>
           </div>
 
+          {/* Cancel subscription */}
+          {billing.subscriptionActive && !billing.subscriptionCancelAtPeriodEnd && (
+            <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+              {cancelConfirm ? (
+                <div className="flex items-center gap-3 text-sm text-slate-600">
+                  <span>Cancel at period end ({fmt(billing.subscriptionCurrentPeriodEnd)})?</span>
+                  <button
+                    onClick={handleCancelPlan}
+                    disabled={planActionLoading}
+                    className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-xs disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {planActionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                    Confirm cancel
+                  </button>
+                  <button
+                    onClick={() => setCancelConfirm(false)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-50"
+                  >
+                    Keep plan
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setCancelConfirm(true)}
+                  className="text-xs text-red-500 hover:text-red-700 underline underline-offset-2 transition-colors"
+                >
+                  Cancel subscription
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Feature pills */}
           {currentPlanMeta && getEnabledFeatures(currentPlanMeta).length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
@@ -276,7 +323,8 @@ export const Subscription = () => {
                 const style       = PLAN_STYLE[plan.code] || PLAN_STYLE.SINGLE;
                 const isCurrent   = currentCode === plan.code;
                 const isPending   = pendingCode === plan.code;
-                const isLoading   = checkoutLoading && selectedCode === plan.code;
+                const isLoading   = selectedCode === plan.code && (checkoutLoading || planActionLoading);
+                const anyLoading  = checkoutLoading || planActionLoading;
                 const price       = getPriceDisplay(plan);
                 const enabled     = getEnabledFeatures(plan);
                 const disabled    = getDisabledFeatures(plan);
@@ -419,7 +467,7 @@ export const Subscription = () => {
                       ) : isPending ? (
                         <button
                           onClick={() => handleChangePlan(plan)}
-                          disabled={checkoutLoading}
+                          disabled={anyLoading}
                           className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl font-semibold text-sm bg-yellow-500 hover:bg-yellow-600 text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isLoading ? (
@@ -428,19 +476,25 @@ export const Subscription = () => {
                             <><Clock className="w-4 h-4" /> Complete Payment</>
                           )}
                         </button>
+                      ) : isFree && billing?.subscriptionActive ? (
+                        <div className="w-full py-2.5 px-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 text-center leading-snug">
+                          Cancel your subscription to return to the free plan
+                        </div>
                       ) : (
                         <button
                           onClick={() => handleChangePlan(plan)}
-                          disabled={checkoutLoading}
+                          disabled={anyLoading}
                           className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed
                             ${style.highlight
                               ? "bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white shadow shadow-blue-200"
                               : "bg-slate-800 hover:bg-slate-900 text-white"}`}
                         >
                           {isLoading ? (
-                            <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting…</>
+                            billing?.subscriptionActive
+                              ? <><Loader2 className="w-4 h-4 animate-spin" /> Updating…</>
+                              : <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting…</>
                           ) : (
-                            <><Zap className="w-4 h-4" /> {isFree ? "Switch to free" : `Switch to ${plan.name}`}</>
+                            <><Zap className="w-4 h-4" /> {`Switch to ${plan.name}`}</>
                           )}
                         </button>
                       )}
@@ -456,12 +510,19 @@ export const Subscription = () => {
             {checkoutError}
           </div>
         )}
+
+        {planActionError && (
+          <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {planActionError}
+          </div>
+        )}
       </div>
 
       {/* Footer */}
       <p className="text-xs text-slate-400 pb-4">
-        Payments are processed securely by Stripe. Switching plans creates a new Stripe Checkout session.
-        Contact{" "}
+        Payments are processed securely by Stripe. Upgrades and downgrades take effect immediately with proration.
+        New subscriptions redirect to Stripe Checkout. Contact{" "}
         <a href="mailto:support@keytels.com" className="underline hover:text-slate-600">
           support@keytels.com
         </a>{" "}

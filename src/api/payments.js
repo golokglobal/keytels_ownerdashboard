@@ -85,13 +85,18 @@ export const createSubscriptionCheckout = async ({ ownerId, planCode, priceId })
 };
 
 // POST /owner-billing/subscriptions/change-plan
-// Body:     { ownerId, newPlanCode, newPriceId? }
+// Body:     { ownerId, planCode, priceId? }
 // Response: OwnerBillingStatusDto (updated billing status)
-export const changeSubscriptionPlan = async ({ ownerId, newPlanCode, newPriceId }) => {
+export const changeSubscriptionPlan = async ({ ownerId, planCode, priceId, newPlanCode, newPriceId }) => {
+  const resolvedPlanCode = planCode ?? newPlanCode;
+  const resolvedPriceId = priceId ?? newPriceId;
+  if (!resolvedPlanCode) {
+    throw new Error("planCode is required");
+  }
   const response = await api.post('/owner-billing/subscriptions/change-plan', {
     ownerId,
-    newPlanCode,
-    ...(newPriceId ? { newPriceId } : {}),
+    planCode: resolvedPlanCode,
+    ...(resolvedPriceId ? { priceId: resolvedPriceId } : {}),
   });
   return response.data;
 };
@@ -102,7 +107,7 @@ export const changeSubscriptionPlan = async ({ ownerId, newPlanCode, newPriceId 
 export const cancelSubscription = async ({ ownerId, cancelImmediately = false, reason }) => {
   const response = await api.post('/owner-billing/subscriptions/cancel', {
     ownerId,
-    cancelImmediately,
+    cancelAtPeriodEnd: !cancelImmediately,
     ...(reason ? { reason } : {}),
   });
   return response.data;
