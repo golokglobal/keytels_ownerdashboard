@@ -8,6 +8,7 @@ import {
   createHotelRoom,
   updateHotelRoom,
   deleteHotelRoom,
+  deleteHotelImageFile,
 } from "../store/slices/PartnerHotelslice";
 import { fetchPropertyTypes, fetchRoomTypes, fetchBedTypes, selectPropertyTypes, selectRoomTypes, selectBedTypes } from "../store/slices/catalogSlice";
 import { useEffect, useRef, useState } from "react";
@@ -299,8 +300,17 @@ export const AddHotel = () => {
   const handleRemovePolicy = (policy) =>
     setFormData((prev) => ({ ...prev, policies: prev.policies.filter((p) => p !== policy) }));
 
-  const handleRemoveHotelImage = (index) =>
+  const handleRemoveHotelImage = async (index) => {
+    const img = formData.hotelImages[index];
+    if (img?.imageId) {
+      try {
+        await dispatch(deleteHotelImageFile({ imageId: img.imageId, hotelId })).unwrap();
+      } catch {
+        return;
+      }
+    }
     setFormData((prev) => ({ ...prev, hotelImages: prev.hotelImages.filter((_, i) => i !== index) }));
+  };
 
   const handleAddRoom = () => {
     if (!roomData.roomType || !roomData.capacity || !roomData.pricePerNight || !roomData.totalRooms) {
