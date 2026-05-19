@@ -206,7 +206,7 @@ export const ChoosePlan = () => {
   const handleSubscribe = async (plan) => {
     if (checkoutLoading) return;
     if (!isLoggedIn) {
-      navigate(`/owner-login?redirect=/choose-plan`);
+      navigate(`/login?redirect=/choose-plan`);
       return;
     }
     setSelectedCode(plan.code);

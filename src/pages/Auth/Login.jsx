@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Hotel,
@@ -56,6 +56,8 @@ const FEATURES = [
 export const Login = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/dashboard';
 
   const [formData, setFormData] = useState({ username: '', password: '', role: 'staff' });
   const [loading, setLoading] = useState(false);
@@ -104,7 +106,7 @@ export const Login = () => {
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         if (['HOTEL_OWNER', 'HOTEL_MANAGER', 'HOTEL_STAFF'].includes(roleFromServer)) {
-          navigate('/dashboard', { replace: true });
+          navigate(redirectTo, { replace: true });
         } else {
           setError('Unknown role. Contact support.');
         }

@@ -131,12 +131,21 @@ export const refundPayment = async (refundData) => {
   return response.data;
 };
 
+// ─── Checkout Sync (webhook-independent) ─────────────────────────────────────
+
+// POST /owner-billing/{ownerId}/sync-checkout?sessionId=xxx
+// Retrieves the Stripe session and updates subscriptionId + status in DB without needing a webhook.
+export const syncCheckout = async (ownerId, sessionId) => {
+  const response = await api.post(`/owner-billing/${ownerId}/sync-checkout?sessionId=${encodeURIComponent(sessionId)}`);
+  return response.data;
+};
+
 // ─── Owner Billing Provision ──────────────────────────────────────────────────
 
 // POST /owner-billing/provision
 // Body:     { ownerId, email, businessName? }
 // Response: OwnerBillingProvisionResponseDto { stripeAccountId, onboardingUrl }
-export const provisionOwnerBilling = async ({ ownerId, email, businessName }) => {
-  const response = await api.post('/owner-billing/provision', { ownerId, email, businessName });
+export const provisionOwnerBilling = async ({ ownerId, email, firstName, lastName }) => {
+  const response = await api.post('/owner-billing/provision', { ownerId, email, firstName, lastName });
   return response.data;
 };

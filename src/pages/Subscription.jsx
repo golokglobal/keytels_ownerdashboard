@@ -92,10 +92,16 @@ export const Subscription = () => {
     if (!plans.length)         dispatch(fetchSubscriptionPlans());
   }, [dispatch, ownerId, billing, plans.length]);
 
+  const PRICE_MAP = {
+    SINGLE:    import.meta.env.VITE_STRIPE_PRICE_SINGLE,
+    MULTI:     import.meta.env.VITE_STRIPE_PRICE_MULTI,
+    FRANCHISE: import.meta.env.VITE_STRIPE_PRICE_FRANCHISE,
+  };
+
   const handleChangePlan = async (plan) => {
     if (!ownerId || checkoutLoading || planActionLoading) return;
     setSelectedCode(plan.code);
-    const priceId = plan.priceId;
+    const priceId = plan.priceId || PRICE_MAP[plan.code];
     try {
       if (billing?.subscriptionActive) {
         await dispatch(changePlan({ ownerId, newPlanCode: plan.code, newPriceId: priceId })).unwrap();

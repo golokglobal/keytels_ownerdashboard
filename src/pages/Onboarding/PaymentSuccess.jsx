@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { CheckCircle2, Hotel, Loader2 } from "lucide-react";
-import { fetchOwnerBilling, selectBilling } from "../../store/slices/paymentsSlice";
+import { fetchOwnerBilling, syncCheckoutSession, selectBilling } from "../../store/slices/paymentsSlice";
 import { selectUserId } from "../../store/slices/userSlice";
 
 export const PaymentSuccess = () => {
@@ -14,6 +14,13 @@ export const PaymentSuccess = () => {
   const billing = useSelector(selectBilling);
   const [checking, setChecking] = useState(true);
   const sessionId = searchParams.get("session_id");
+
+  // Immediately sync from Stripe when session_id is in the URL — no webhook needed
+  useEffect(() => {
+    if (ownerId && sessionId) {
+      dispatch(syncCheckoutSession({ ownerId, sessionId }));
+    }
+  }, [ownerId, sessionId, dispatch]);
 
   useEffect(() => {
     if (!ownerId) return;
