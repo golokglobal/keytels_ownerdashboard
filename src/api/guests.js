@@ -6,7 +6,7 @@ import api from '../config/axiosConfig';
  */
 export const fetchGuests = async (hotelId) => {
   const response = await api.get(`/hotels/${hotelId}/bookings`);
-  const bookings = response.data;
+  const bookings = extractBookings(response.data);
 
   // Group bookings by guestId to build unique guest list
   const guestMap = new Map();
@@ -45,4 +45,13 @@ export const fetchGuests = async (hotelId) => {
   });
 
   return Array.from(guestMap.values());
+};
+
+const extractBookings = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.content)) return payload.content;
+  if (Array.isArray(payload?.bookings)) return payload.bookings;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.items)) return payload.items;
+  return [];
 };

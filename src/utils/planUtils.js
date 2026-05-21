@@ -55,6 +55,13 @@ export const getPriceDisplay = (plan) => {
   };
 };
 
+export const isPaidSubscriptionPlan = (plan) => plan?.code && plan.code !== "FREE";
+
+export const getBackendPriceId = (plan) => {
+  const priceId = typeof plan?.priceId === "string" ? plan.priceId.trim() : "";
+  return priceId || null;
+};
+
 /** True features (value === true) from the plan's features map */
 export const getEnabledFeatures = (plan) => {
   if (!plan.features) return [];

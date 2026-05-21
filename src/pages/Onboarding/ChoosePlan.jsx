@@ -21,6 +21,8 @@ import {
   getPriceDisplay,
   getEnabledFeatures,
   getDisabledFeatures,
+  getBackendPriceId,
+  isPaidSubscriptionPlan,
 } from "../../utils/planUtils";
 
 /* ── Skeleton card ── */
@@ -190,6 +192,7 @@ export const ChoosePlan = () => {
   const checkoutLoading = useSelector(selectCheckoutLoading);
   const checkoutError   = useSelector(selectCheckoutError);
   const [selectedCode, setSelectedCode] = useState(null);
+  const [priceIdError, setPriceIdError] = useState(null);
 
   const isLoggedIn = !!ownerId;
 
@@ -197,20 +200,24 @@ export const ChoosePlan = () => {
     if (!plans.length) dispatch(fetchSubscriptionPlans());
   }, [dispatch, plans.length]);
 
-  const PRICE_MAP = {
-    SINGLE:    import.meta.env.VITE_STRIPE_PRICE_SINGLE,
-    MULTI:     import.meta.env.VITE_STRIPE_PRICE_MULTI,
-    FRANCHISE: import.meta.env.VITE_STRIPE_PRICE_FRANCHISE,
-  };
-
   const handleSubscribe = async (plan) => {
     if (checkoutLoading) return;
+    setPriceIdError(null);
     if (!isLoggedIn) {
       navigate(`/login?redirect=/choose-plan`);
       return;
     }
     setSelectedCode(plan.code);
-    const priceId = plan.priceId || PRICE_MAP[plan.code];
+    if (!isPaidSubscriptionPlan(plan)) {
+      navigate("/dashboard");
+      return;
+    }
+    const priceId = getBackendPriceId(plan);
+    if (!priceId) {
+      setPriceIdError("This plan is missing a backend Stripe price ID. Refresh plans or check the backend plan configuration.");
+      setSelectedCode(null);
+      return;
+    }
     try {
       const data = await dispatch(
         startCheckout({ ownerId, planCode: plan.code, priceId })
@@ -290,14 +297,14 @@ export const ChoosePlan = () => {
                 ))}
           </div>
 
-          {checkoutError && (
+          {(checkoutError || priceIdError) && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="mt-5 flex items-center gap-2 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm max-w-md mx-auto"
             >
               <AlertCircle className="w-4 h-4 shrink-0" />
-              {checkoutError}
+              {checkoutError || priceIdError}
             </motion.div>
           )}
 
