@@ -85,13 +85,18 @@ export const createSubscriptionCheckout = async ({ ownerId, planCode, priceId })
 };
 
 // POST /owner-billing/subscriptions/change-plan
-// Body:     { ownerId, newPlanCode, newPriceId? }
+// Body:     { ownerId, planCode, priceId? }
 // Response: OwnerBillingStatusDto (updated billing status)
-export const changeSubscriptionPlan = async ({ ownerId, newPlanCode, newPriceId }) => {
+export const changeSubscriptionPlan = async ({ ownerId, planCode, priceId, newPlanCode, newPriceId }) => {
+  const resolvedPlanCode = planCode ?? newPlanCode;
+  const resolvedPriceId = priceId ?? newPriceId;
+  if (!resolvedPlanCode) {
+    throw new Error("planCode is required");
+  }
   const response = await api.post('/owner-billing/subscriptions/change-plan', {
     ownerId,
-    newPlanCode,
-    ...(newPriceId ? { newPriceId } : {}),
+    planCode: resolvedPlanCode,
+    ...(resolvedPriceId ? { priceId: resolvedPriceId } : {}),
   });
   return response.data;
 };
@@ -102,7 +107,7 @@ export const changeSubscriptionPlan = async ({ ownerId, newPlanCode, newPriceId 
 export const cancelSubscription = async ({ ownerId, cancelImmediately = false, reason }) => {
   const response = await api.post('/owner-billing/subscriptions/cancel', {
     ownerId,
-    cancelImmediately,
+    cancelAtPeriodEnd: !cancelImmediately,
     ...(reason ? { reason } : {}),
   });
   return response.data;
@@ -126,12 +131,21 @@ export const refundPayment = async (refundData) => {
   return response.data;
 };
 
+// ─── Checkout Sync (webhook-independent) ─────────────────────────────────────
+
+// POST /owner-billing/{ownerId}/sync-checkout?sessionId=xxx
+// Retrieves the Stripe session and updates subscriptionId + status in DB without needing a webhook.
+export const syncCheckout = async (ownerId, sessionId) => {
+  const response = await api.post(`/owner-billing/${ownerId}/sync-checkout?sessionId=${encodeURIComponent(sessionId)}`);
+  return response.data;
+};
+
 // ─── Owner Billing Provision ──────────────────────────────────────────────────
 
 // POST /owner-billing/provision
 // Body:     { ownerId, email, businessName? }
 // Response: OwnerBillingProvisionResponseDto { stripeAccountId, onboardingUrl }
-export const provisionOwnerBilling = async ({ ownerId, email, businessName }) => {
-  const response = await api.post('/owner-billing/provision', { ownerId, email, businessName });
+export const provisionOwnerBilling = async ({ ownerId, email, firstName, lastName }) => {
+  const response = await api.post('/owner-billing/provision', { ownerId, email, firstName, lastName });
   return response.data;
 };

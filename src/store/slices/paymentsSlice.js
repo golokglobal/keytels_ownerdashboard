@@ -10,6 +10,7 @@ import {
   cancelSubscription,
   createPaymentWithCommission,
   refundPayment,
+  syncCheckout as syncCheckoutApi,
 } from '../../api/payments';
 
 export const fetchOwnerBilling = createAsyncThunk(
@@ -107,6 +108,17 @@ export const fetchOwnerPayments = createAsyncThunk(
       return await getOwnerPayments(ownerId);
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch payments');
+    }
+  }
+);
+
+export const syncCheckoutSession = createAsyncThunk(
+  'payments/syncCheckoutSession',
+  async ({ ownerId, sessionId }, { rejectWithValue }) => {
+    try {
+      return await syncCheckoutApi(ownerId, sessionId);
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to sync checkout');
     }
   }
 );
@@ -287,6 +299,11 @@ const paymentsSlice = createSlice({
       .addCase(fetchOwnerPayments.rejected, (state, action) => {
         state.ownerPaymentsLoading = false;
         state.ownerPaymentsError = action.payload;
+      })
+
+      // ── syncCheckoutSession ──
+      .addCase(syncCheckoutSession.fulfilled, (state, action) => {
+        state.billing = action.payload;
       })
 
       // ── processRefund ──

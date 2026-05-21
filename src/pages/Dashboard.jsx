@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   DollarSign, Calendar, TrendingUp, Bed, Star,
   ArrowRight, LogIn, LogOut, Users, CheckCircle2,
-  AlertCircle, Building2, BarChart2, RefreshCw,
+  AlertCircle, Building2, BarChart2, RefreshCw, ExternalLink, Loader2,
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -20,12 +20,15 @@ import {
   selectRevenue, clearBookings,
 } from '../store/slices/bookingSlice';
 import { fetchDashboardReviews, fetchHotelReviewSummary, clearReviews } from '../store/slices/reviewSlice';
-import { selectPrimaryHotelId, selectUserId } from '../store/slices/userSlice';
+import { selectPrimaryHotelId, selectUserId, selectCurrentUser, selectIsHotelOwner } from '../store/slices/userSlice';
 import {
   fetchOwnerDashboardAnalytics,
+  fetchOwnerBilling,
   selectOwnerDashboard,
   selectOwnerDashboardLoading,
+  selectBilling,
 } from '../store/slices/paymentsSlice';
+import { provisionOwnerBilling } from '../api/payments';
 
 const getGuestName = (b) => {
   if (b.guest) {
@@ -74,9 +77,39 @@ export const Dashboard = () => {
   const revenue        = useSelector(selectRevenue);
   const activeHotelId  = useSelector(selectPrimaryHotelId);
   const ownerId        = useSelector(selectUserId);
+  const currentUser    = useSelector(selectCurrentUser);
+  const isOwner        = useSelector(selectIsHotelOwner);
+  const billing        = useSelector(selectBilling);
   const ownerDashboard = useSelector(selectOwnerDashboard);
   const ownerLoading   = useSelector(selectOwnerDashboardLoading);
   const [loading, setLoading] = useState(true);
+  const [onboardingLoading, setOnboardingLoading] = useState(false);
+  const [onboardingError, setOnboardingError] = useState(null);
+
+  // Backend sets stripeOnboardingComplete=true when detailsSubmitted=true — use it as source of truth
+  const stripeNeedsOnboarding = isOwner && billing && billing.stripeOnboardingComplete === false;
+
+  const handleCompleteOnboarding = async () => {
+    setOnboardingLoading(true);
+    setOnboardingError(null);
+    try {
+      const result = await provisionOwnerBilling({
+        ownerId,
+        email: currentUser?.email,
+        firstName: currentUser?.firstName,
+        lastName: currentUser?.lastName,
+      });
+      if (result?.onboardingUrl) {
+        window.location.href = result.onboardingUrl;
+      } else {
+        setOnboardingError('Could not generate onboarding link. Please try again.');
+      }
+    } catch {
+      setOnboardingError('Failed to connect to Stripe. Please try again.');
+    } finally {
+      setOnboardingLoading(false);
+    }
+  };
 
   const now        = new Date();
   const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
@@ -86,6 +119,7 @@ export const Dashboard = () => {
     if (!ownerId) return;
     const from = new Date(); from.setDate(from.getDate() - 30);
     dispatch(fetchOwnerDashboardAnalytics({ ownerId, startDate: from.toISOString().split('T')[0], endDate: today }));
+    if (isOwner && !billing) dispatch(fetchOwnerBilling(ownerId));
   }, [ownerId]);
 
   const loadData = async (hid) => {
@@ -121,6 +155,47 @@ export const Dashboard = () => {
 
   return (
     <div className="space-y-8">
+
+      {/* ═══════════════════════════════════════════════════════════
+          STRIPE ONBOARDING BANNERS
+      ═══════════════════════════════════════════════════════════ */}
+
+      {/* Owner hasn't submitted details — action required */}
+      {stripeNeedsOnboarding && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-6 py-5"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+                <AlertCircle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-amber-900">Complete your Stripe setup to receive payouts</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Your Stripe account details are missing. You will not receive payments until setup is complete.
+                </p>
+                {onboardingError && (
+                  <p className="text-xs text-red-600 mt-1 font-medium">{onboardingError}</p>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={handleCompleteOnboarding}
+              disabled={onboardingLoading}
+              className="shrink-0 flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-all shadow-sm shadow-amber-200"
+            >
+              {onboardingLoading
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Connecting…</>
+                : <><ExternalLink className="w-4 h-4" /> Complete Stripe Setup</>
+              }
+            </button>
+          </div>
+        </motion.div>
+      )}
+
 
       {/* ═══════════════════════════════════════════════════════════
           HEADER

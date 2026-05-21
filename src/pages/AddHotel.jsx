@@ -8,8 +8,11 @@ import {
   createHotelRoom,
   updateHotelRoom,
   deleteHotelRoom,
+  deleteHotelImageFile,
 } from "../store/slices/PartnerHotelslice";
 import { fetchPropertyTypes, fetchRoomTypes, fetchBedTypes, selectPropertyTypes, selectRoomTypes, selectBedTypes } from "../store/slices/catalogSlice";
+import { fetchOwnerBilling, selectBilling } from "../store/slices/paymentsSlice";
+import { selectUserId, selectIsHotelOwner } from "../store/slices/userSlice";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { LocationPicker } from "../components/common/LocationPicker";
@@ -30,6 +33,7 @@ import {
   Percent,
   ArrowLeft,
   Shield,
+  CreditCard,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { ConfirmModal } from "../components/common/ConfirmModal";
@@ -198,6 +202,16 @@ export const AddHotel = () => {
   const propertyTypes = useSelector(selectPropertyTypes);
   const roomTypes = useSelector(selectRoomTypes);
   const bedTypes = useSelector(selectBedTypes);
+  const ownerId  = useSelector(selectUserId);
+  const isOwner  = useSelector(selectIsHotelOwner);
+  const billing  = useSelector(selectBilling);
+
+  const hasPaidSubscription = !!(
+    billing &&
+    billing.subscriptionPlan &&
+    billing.subscriptionPlan !== "FREE" &&
+    (billing.subscriptionStatus === "ACTIVE" || billing.subscriptionStatus === "TRIALING")
+  );
   /* ─────────────────────── STATE ─────────────────────── */
   const [formData, setFormData] = useState({
     hotelName: "",
@@ -247,8 +261,9 @@ export const AddHotel = () => {
     dispatch(fetchRoomTypes());
     dispatch(fetchBedTypes());
     if (isUpdateMode) dispatch(fetchHotelById(hotelId));
+    if (isOwner && ownerId && !billing) dispatch(fetchOwnerBilling(ownerId));
     return () => dispatch(clearHotelError());
-  }, [dispatch, hotelId, isUpdateMode]);
+  }, [dispatch, hotelId, isUpdateMode, isOwner, ownerId, billing]);
 
   useEffect(() => {
     if (isUpdateMode && selectedHotel) {
@@ -299,8 +314,17 @@ export const AddHotel = () => {
   const handleRemovePolicy = (policy) =>
     setFormData((prev) => ({ ...prev, policies: prev.policies.filter((p) => p !== policy) }));
 
-  const handleRemoveHotelImage = (index) =>
+  const handleRemoveHotelImage = async (index) => {
+    const img = formData.hotelImages[index];
+    if (img?.imageId) {
+      try {
+        await dispatch(deleteHotelImageFile({ imageId: img.imageId, hotelId })).unwrap();
+      } catch {
+        return;
+      }
+    }
     setFormData((prev) => ({ ...prev, hotelImages: prev.hotelImages.filter((_, i) => i !== index) }));
+  };
 
   const handleAddRoom = () => {
     if (!roomData.roomType || !roomData.capacity || !roomData.pricePerNight || !roomData.totalRooms) {
@@ -524,6 +548,7 @@ export const AddHotel = () => {
             ? toast.success(`Hotel created! ${ok} room(s) added, ${fail} failed.`)
             : toast.success(`Hotel and ${ok} room(s) created successfully!`);
 
+          if (isOwner && ownerId) dispatch(fetchOwnerBilling(ownerId));
           navigate("/hotels");
         } else {
           throw new Error(hotelResult.error?.message || "Failed to create hotel");
@@ -1156,6 +1181,19 @@ export const AddHotel = () => {
       {submitError && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-2 text-red-700 text-sm">
           <AlertCircle className="w-4 h-4 shrink-0" /> {submitError}
+        </div>
+      )}
+
+      {hasPaidSubscription && (
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-3">
+          <CreditCard className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-blue-800 text-sm">Per-property billing</p>
+            <p className="text-blue-700 text-sm mt-0.5">
+              Adding this property will add one seat to your <strong>{billing.subscriptionPlan}</strong> plan.
+              A prorated charge for the remaining billing period will be applied to your card immediately.
+            </p>
+          </div>
         </div>
       )}
 
