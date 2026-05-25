@@ -377,7 +377,7 @@ function AcceleratorTab() {
           <p className="text-sm font-semibold text-purple-900">What is Accelerator?</p>
           <p className="text-xs text-purple-700 mt-0.5 leading-relaxed">
             Accelerator boosts your property's search ranking by bidding for premium placement. You only pay when a guest books.
-            Set a commission rate and Keytels automatically competes for top slots during high-demand periods.
+            Set a commission rate and Desiney automatically competes for top slots during high-demand periods.
           </p>
         </div>
       </div>
@@ -471,7 +471,7 @@ function AcceleratorTab() {
 /* ─────────────────────────── TRAVEL ADS TAB ─────────────────────────── */
 const AD_PLACEMENTS = [
   {
-    id: 1, name: 'Keytels Search — Top Slot', placement: 'Search results #1',
+    id: 1, name: 'Desiney Search — Top Slot', placement: 'Search results #1',
     status: 'live', impressions: '1,84,200', clicks: '9,210', ctr: '5.0%',
     spend: '₹8,400', budget: '₹12,000', pct: 70, cpc: '₹0.91',
   },
@@ -496,7 +496,7 @@ function TravelAdsTab() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">Sponsored placements across Keytels search, destination pages, and email.</p>
+        <p className="text-sm text-slate-500">Sponsored placements across Desiney search, destination pages, and email.</p>
         <button className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors">
           <Plus className="w-4 h-4" /> Create Ad
         </button>

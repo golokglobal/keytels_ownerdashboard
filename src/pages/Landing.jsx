@@ -28,7 +28,7 @@ import {
 import { submitPartnerRequest } from '../api/partnerRequests';
 
 const NAV_LINKS = [
-  { label: 'Why Keytels', href: '#why' },
+  { label: 'Why Desiney', href: '#why' },
   { label: 'How It Works', href: '#how' },
   { label: 'Partners', href: '#stories' },
   { label: 'Request Access', href: '#request' },
@@ -108,7 +108,7 @@ const TESTIMONIALS = [
     name: 'Priya Mehta',
     role: 'Revenue Head',
     company: 'Vista Retreats',
-    text: 'Managing 5 properties from one dashboard was a dream. Keytels made it reality. Support responds in under an hour.',
+    text: 'Managing 5 properties from one dashboard was a dream. Desiney made it reality. Support responds in under an hour.',
     stat: '5 Hotels, 1 Portal',
     rating: 5,
   },
@@ -240,7 +240,7 @@ export const Landing = () => {
               <Hotel className="w-5 h-5 text-white" />
             </div>
             <div className="leading-tight">
-              <span className="text-white font-bold text-lg tracking-tight">Keytels</span>
+              <span className="text-white font-bold text-lg tracking-tight">Desiney</span>
               <span className="block text-teal-400 text-[10px] font-medium uppercase tracking-widest -mt-0.5">Partner Hub</span>
             </div>
           </div>
@@ -335,7 +335,7 @@ export const Landing = () => {
               <h1 className="text-4xl sm:text-5xl xl:text-6xl font-extrabold text-white leading-[1.1] tracking-tight">
                 Grow your hotel
                 <span className="block text-teal-400">business with</span>
-                <span className="block">Keytels.</span>
+                <span className="block">Desiney.</span>
               </h1>
 
               <p className="mt-6 text-lg text-slate-400 leading-relaxed max-w-lg">
@@ -489,7 +489,7 @@ export const Landing = () => {
         </div>
       </section>
 
-      {/* ── WHY KEYTELS ── */}
+      {/* ── WHY DESINEY ── */}
       <section id="why" className="py-20 bg-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="text-center max-w-2xl mx-auto mb-14">
@@ -576,7 +576,7 @@ export const Landing = () => {
                 Real numbers from real partners
               </h2>
               <p className="mt-4 text-slate-400">
-                After 90 days on Keytels, our average partner sees measurable uplift across all key metrics.
+                After 90 days on Desiney, our average partner sees measurable uplift across all key metrics.
               </p>
               <div className="mt-6 space-y-3">
                 {[
@@ -695,7 +695,7 @@ export const Landing = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Mail className="w-4 h-4 text-slate-400" />
-                  <span>partners@keytels.com</span>
+                  <span>partners@desiney.com</span>
                 </div>
               </div>
             </div>
@@ -849,7 +849,7 @@ export const Landing = () => {
                     value={formData.message}
                     onChange={handleChange}
                     rows={4}
-                    placeholder="Describe your hotel group, current challenges, and what you're hoping to achieve with Keytels..."
+                    placeholder="Describe your hotel group, current challenges, and what you're hoping to achieve with Desiney..."
                     className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition resize-none placeholder-slate-400"
                   />
                 </div>
@@ -894,7 +894,7 @@ export const Landing = () => {
                   <Hotel className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <span className="text-white font-bold text-base">Keytels</span>
+                  <span className="text-white font-bold text-base">Desiney</span>
                   <span className="block text-teal-400 text-[10px] font-medium uppercase tracking-widest">Partner Hub</span>
                 </div>
               </div>
@@ -932,7 +932,7 @@ export const Landing = () => {
           </div>
 
           <div className="border-t border-white/10 pt-6 flex flex-wrap items-center justify-between gap-4 text-sm text-slate-500">
-            <p>© 2026 Keytels Partner Hub. All rights reserved.</p>
+            <p>© 2026 Desiney Partner Hub. All rights reserved.</p>
             <div className="flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-teal-500" />
               <span>SOC 2 Compliant &nbsp;·&nbsp; PCI DSS Ready &nbsp;·&nbsp; GDPR Aligned</span>

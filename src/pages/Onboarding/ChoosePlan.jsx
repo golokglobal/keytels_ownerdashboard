@@ -239,7 +239,7 @@ export const ChoosePlan = () => {
         <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
           <Hotel className="w-5 h-5 text-white" />
         </div>
-        <span className="text-white font-bold text-lg">Keytels</span>
+        <span className="text-white font-bold text-lg">Desiney</span>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-12">

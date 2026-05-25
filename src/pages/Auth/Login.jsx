@@ -145,7 +145,7 @@ export const Login = () => {
             <Hotel className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="text-white font-bold text-lg leading-tight">Keytels</p>
+            <p className="text-white font-bold text-lg leading-tight">Desiney</p>
             <p className="text-teal-400 text-[10px] font-semibold uppercase tracking-widest">Partner Hub</p>
           </div>
         </div>
@@ -157,7 +157,7 @@ export const Login = () => {
             <span className="text-teal-400">All in one place.</span>
           </h2>
           <p className="text-slate-400 text-sm leading-relaxed mb-8">
-            Manage properties, track revenue, and grow your hospitality business with Keytels.
+            Manage properties, track revenue, and grow your hospitality business with Desiney.
           </p>
 
           <div className="space-y-3">
@@ -179,7 +179,7 @@ export const Login = () => {
               ))}
             </div>
             <p className="text-sm text-slate-300 italic leading-relaxed">
-              "Our occupancy rose 19% within 60 days after onboarding to Keytels. The portal is the best we've used."
+              "Our occupancy rose 19% within 60 days after onboarding to Desiney. The portal is the best we've used."
             </p>
             <p className="text-xs text-slate-500 mt-3">— Alpine Suites, Aspen</p>
           </div>
@@ -233,7 +233,7 @@ export const Login = () => {
                 <Hotel className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="font-bold text-slate-900">Keytels Partner Hub</p>
+                <p className="font-bold text-slate-900">Desiney Partner Hub</p>
                 <p className="text-teal-600 text-[10px] font-semibold uppercase tracking-widest">Secure Access</p>
               </div>
             </div>
@@ -344,7 +344,7 @@ export const Login = () => {
             </form>
 
             <p className="mt-6 text-center text-xs text-slate-400">
-              By signing in, you agree to Keytels Partner Terms and Privacy Policy.
+              By signing in, you agree to Desiney Partner Terms and Privacy Policy.
             </p>
           </motion.div>
         </div>

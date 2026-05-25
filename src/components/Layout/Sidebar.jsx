@@ -52,7 +52,7 @@ const DOCS = [
   },
   {
     title: 'Financials',
-    content: 'Manage your Keytels subscription and view hotel revenue. Search revenue and booking summaries by date range.',
+    content: 'Manage your Desiney subscription and view hotel revenue. Search revenue and booking summaries by date range.',
   },
   {
     title: 'Reviews',
@@ -60,7 +60,7 @@ const DOCS = [
   },
   {
     title: 'Support',
-    content: 'Raise and track support tickets with the Keytels team.',
+    content: 'Raise and track support tickets with the Desiney team.',
   },
   {
     title: 'Settings',
@@ -345,7 +345,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
             <button className="underline hover:text-slate-600 transition-colors">Terms of use</button>
           </p>
           <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">
-            © {new Date().getFullYear()} Keytels. All rights reserved.
+            © {new Date().getFullYear()} Desiney. All rights reserved.
           </p>
         </div>
 

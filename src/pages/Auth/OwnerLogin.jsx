@@ -90,7 +90,7 @@ export const OwnerLogin = () => {
               <Crown className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
-              Keytels
+              Desiney
             </h1>
           </div>
           <p className="text-slate-600 text-lg font-medium">Hotel Owner Portal</p>

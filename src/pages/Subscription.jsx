@@ -154,7 +154,7 @@ export const Subscription = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Subscription</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Manage your Keytels plan and billing details</p>
+          <p className="text-sm text-slate-500 mt-0.5">Manage your Desiney plan and billing details</p>
         </div>
         <button
           onClick={() => ownerId && dispatch(fetchOwnerBilling(ownerId))}
@@ -536,8 +536,8 @@ export const Subscription = () => {
       <p className="text-xs text-slate-400 pb-4">
         Payments are processed securely by Stripe. Upgrades and downgrades take effect immediately with proration.
         New subscriptions redirect to Stripe Checkout. Contact{" "}
-        <a href="mailto:support@keytels.com" className="underline hover:text-slate-600">
-          support@keytels.com
+        <a href="mailto:support@desiney.com" className="underline hover:text-slate-600">
+          support@desiney.com
         </a>{" "}
         for billing questions.
       </p>
