@@ -11,6 +11,8 @@ import {
   createPaymentWithCommission,
   refundPayment,
   syncCheckout as syncCheckoutApi,
+  addPropertyToSubscription as addPropertyApi,
+  removePropertyFromSubscription as removePropertyApi,
 } from '../../api/payments';
 
 export const fetchOwnerBilling = createAsyncThunk(
@@ -48,9 +50,9 @@ export const createCommissionPayment = createAsyncThunk(
 
 export const startCheckout = createAsyncThunk(
   'payments/startCheckout',
-  async ({ ownerId, planCode, priceId }, { rejectWithValue }) => {
+  async ({ ownerId, planCode, priceId, couponCode, currentPropertyCount }, { rejectWithValue }) => {
     try {
-      return await createSubscriptionCheckout({ ownerId, planCode, priceId });
+      return await createSubscriptionCheckout({ ownerId, planCode, priceId, couponCode, currentPropertyCount });
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to create checkout session');
     }
@@ -59,11 +61,33 @@ export const startCheckout = createAsyncThunk(
 
 export const changePlan = createAsyncThunk(
   'payments/changePlan',
-  async ({ ownerId, newPlanCode, newPriceId }, { rejectWithValue }) => {
+  async ({ ownerId, newPlanCode, newPriceId, currentPropertyCount }, { rejectWithValue }) => {
     try {
-      return await changeSubscriptionPlan({ ownerId, newPlanCode, newPriceId });
+      return await changeSubscriptionPlan({ ownerId, newPlanCode, newPriceId, currentPropertyCount });
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to change plan');
+    }
+  }
+);
+
+export const addProperty = createAsyncThunk(
+  'payments/addProperty',
+  async (ownerId, { rejectWithValue }) => {
+    try {
+      return await addPropertyApi(ownerId);
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to add property to subscription');
+    }
+  }
+);
+
+export const removeProperty = createAsyncThunk(
+  'payments/removeProperty',
+  async (ownerId, { rejectWithValue }) => {
+    try {
+      return await removePropertyApi(ownerId);
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to remove property from subscription');
     }
   }
 );
@@ -165,6 +189,9 @@ const paymentsSlice = createSlice({
     // refund
     refundLoading: false,
     refundError: null,
+    // property seat management
+    propertyActionLoading: false,
+    propertyActionError: null,
   },
   reducers: {
     clearPaymentsError(state) {
@@ -306,6 +333,34 @@ const paymentsSlice = createSlice({
         state.billing = action.payload;
       })
 
+      // ── addProperty ──
+      .addCase(addProperty.pending, (state) => {
+        state.propertyActionLoading = true;
+        state.propertyActionError = null;
+      })
+      .addCase(addProperty.fulfilled, (state, action) => {
+        state.propertyActionLoading = false;
+        state.billing = action.payload;
+      })
+      .addCase(addProperty.rejected, (state, action) => {
+        state.propertyActionLoading = false;
+        state.propertyActionError = action.payload;
+      })
+
+      // ── removeProperty ──
+      .addCase(removeProperty.pending, (state) => {
+        state.propertyActionLoading = true;
+        state.propertyActionError = null;
+      })
+      .addCase(removeProperty.fulfilled, (state, action) => {
+        state.propertyActionLoading = false;
+        state.billing = action.payload;
+      })
+      .addCase(removeProperty.rejected, (state, action) => {
+        state.propertyActionLoading = false;
+        state.propertyActionError = action.payload;
+      })
+
       // ── processRefund ──
       .addCase(processRefund.pending, (state) => {
         state.refundLoading = true;
@@ -342,5 +397,7 @@ export const selectOwnerPayments        = (state) => state.payments.ownerPayment
 export const selectOwnerPaymentsLoading = (state) => state.payments.ownerPaymentsLoading;
 export const selectPlanActionLoading    = (state) => state.payments.planActionLoading;
 export const selectPlanActionError      = (state) => state.payments.planActionError;
-export const selectRefundLoading        = (state) => state.payments.refundLoading;
-export const selectRefundError          = (state) => state.payments.refundError;
+export const selectRefundLoading           = (state) => state.payments.refundLoading;
+export const selectRefundError             = (state) => state.payments.refundError;
+export const selectPropertyActionLoading   = (state) => state.payments.propertyActionLoading;
+export const selectPropertyActionError     = (state) => state.payments.propertyActionError;

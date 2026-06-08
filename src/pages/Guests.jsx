@@ -392,7 +392,7 @@ export const Guests = () => {
                             </div>
                           </div>
                           <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-                            <span>Room: {booking.roomId.slice(0, 8)}...</span>
+                            <span>{booking.roomType || `Room: ${(booking.roomId || '').slice(0, 8)}…`}</span>
                             <span
                               className={`px-2 py-0.5 rounded-full ${
                                 booking.paymentStatus === 'PAID'
@@ -450,58 +450,89 @@ export const Guests = () => {
                 </button>
               </div>
 
-              <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(85vh-88px)]">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Status</p>
-                    <p className="font-semibold text-slate-900">{selectedBooking.bookingStatus}</p>
+              <div className="p-6 space-y-5 overflow-y-auto max-h-[calc(85vh-88px)]">
+
+                {/* Guest details */}
+                {selectedBooking.guest && (
+                  <div className="bg-slate-50 rounded-xl border border-slate-100 p-4">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Guest</h3>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                        {((selectedBooking.guest.firstName?.[0] || '') + (selectedBooking.guest.lastName?.[0] || '')).toUpperCase() || '?'}
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-900 text-sm">
+                          {[selectedBooking.guest.firstName, selectedBooking.guest.lastName].filter(Boolean).join(' ') || 'Unknown Guest'}
+                        </p>
+                        <p className="text-xs text-slate-500">{selectedBooking.guest.email || '—'}</p>
+                      </div>
+                    </div>
+                    {selectedBooking.guest.phoneNumber && (
+                      <p className="text-sm text-slate-600 flex items-center gap-2">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" />
+                        {selectedBooking.guest.phoneNumber}
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Payment</p>
-                    <p className="font-semibold text-slate-900">{selectedBooking.paymentStatus}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Check-in</p>
-                    <p className="font-semibold text-slate-900">{selectedBooking.checkInDate}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Check-out</p>
-                    <p className="font-semibold text-slate-900">{selectedBooking.checkOutDate}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Room</p>
-                    <p className="font-semibold text-slate-900">{selectedBooking.roomId}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Refund</p>
-                    <p className="font-semibold text-slate-900">{selectedBooking.refundStatus || 'NA'}</p>
-                  </div>
+                )}
+
+                {/* Booking info */}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  {[
+                    { label: 'Booking Status', value: selectedBooking.bookingStatus },
+                    { label: 'Payment Status', value: selectedBooking.paymentStatus },
+                    { label: 'Check-in',       value: selectedBooking.checkInDate ? new Date(selectedBooking.checkInDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
+                    { label: 'Check-out',      value: selectedBooking.checkOutDate ? new Date(selectedBooking.checkOutDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
+                    { label: 'Room',           value: selectedBooking.roomNumber || selectedBooking.roomType || (selectedBooking.roomId ? selectedBooking.roomId.slice(0, 8) + '…' : '—') },
+                    { label: 'Refund Status',  value: selectedBooking.refundStatus || 'N/A' },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                      <p className="text-xs text-slate-500 mb-1">{label}</p>
+                      <p className="font-semibold text-slate-900">{value}</p>
+                    </div>
+                  ))}
                 </div>
 
+                {/* Actual check-in/out times */}
+                {(selectedBooking.actualCheckInTime || selectedBooking.actualCheckOutTime) && (
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    {selectedBooking.actualCheckInTime && (
+                      <div className="bg-green-50 rounded-lg p-3 border border-green-100">
+                        <p className="text-xs text-green-600 mb-1 font-semibold">Actual Check-in</p>
+                        <p className="font-semibold text-green-800 text-xs">{new Date(selectedBooking.actualCheckInTime).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {selectedBooking.actualCheckOutTime && (
+                      <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                        <p className="text-xs text-slate-500 mb-1 font-semibold">Actual Check-out</p>
+                        <p className="font-semibold text-slate-700 text-xs">{new Date(selectedBooking.actualCheckOutTime).toLocaleString()}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Financials */}
                 <div className="bg-slate-50 rounded-xl border border-slate-100 p-4">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3">Payment Details</h3>
-                  {!paymentDetails ? (
-                    <p className="text-sm text-slate-500">Loading payment details…</p>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Total Amount</p>
+                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Financials</h3>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    {[
+                      { label: 'Total Amount',   value: selectedBooking.totalAmount   ?? paymentDetails?.totalAmount },
+                      { label: 'Extra Charges',  value: selectedBooking.extraCharges  ?? null },
+                      { label: 'Final Amount',   value: selectedBooking.finalAmount   ?? null },
+                      { label: 'Refund Amount',  value: selectedBooking.refundAmount  ?? paymentDetails?.refundAmount },
+                    ].map(({ label, value }) => (
+                      <div key={label}>
+                        <p className="text-xs text-slate-500 mb-1">{label}</p>
                         <p className="font-semibold text-slate-900">
-                          ${paymentDetails.totalAmount?.toLocaleString() || '0'}
+                          {value != null ? `$${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Refund Amount</p>
-                        <p className="font-semibold text-slate-900">
-                          ${paymentDetails.refundAmount?.toLocaleString() || '0'}
-                        </p>
-                      </div>
-                      {paymentDetails.refundPolicy && (
-                        <div className="col-span-2">
-                          <p className="text-xs text-slate-500 mb-1">Refund Policy</p>
-                          <p className="text-sm text-slate-700">{paymentDetails.refundPolicy}</p>
-                        </div>
-                      )}
+                    ))}
+                  </div>
+                  {(selectedBooking.refundPolicy || paymentDetails?.refundPolicy) && (
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <p className="text-xs text-slate-500 mb-1">Refund Policy</p>
+                      <p className="text-sm text-slate-700">{selectedBooking.refundPolicy || paymentDetails?.refundPolicy}</p>
                     </div>
                   )}
                 </div>

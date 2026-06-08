@@ -11,6 +11,9 @@ import {
   getUserByUsername,
   getUserByEmail,
   getOwnerWallet,
+  getOwnerProfileApi,
+  updateOwnerProfileApi,
+  changeOwnerPasswordApi,
 } from "../../api/auth";
 
 // ── THUNKS ────────────────────────────────────────────────────────────────
@@ -67,9 +70,12 @@ export const signinOwner = createAsyncThunk(
 
 export const fetchCurrentUser = createAsyncThunk(
   "user/fetchCurrentUser",
-  async (_, { rejectWithValue }) => {
+  async (_, { rejectWithValue, getState }) => {
     try {
-      const response = await getProfileApi();
+      const role = getState().user.userRole;
+      const response = role === "HOTEL_OWNER"
+        ? await getOwnerProfileApi()
+        : await getProfileApi();
       return response.user;
     } catch (error) {
       return rejectWithValue(error.message || "Failed to fetch current user");
@@ -79,9 +85,12 @@ export const fetchCurrentUser = createAsyncThunk(
 
 export const updateProfile = createAsyncThunk(
   "user/updateProfile",
-  async ({ firstName, lastName, phoneNumber }, { rejectWithValue }) => {
+  async ({ firstName, lastName, phoneNumber }, { rejectWithValue, getState }) => {
     try {
-      const response = await updateProfileApi({ firstName, lastName, phoneNumber });
+      const role = getState().user.userRole;
+      const response = role === "HOTEL_OWNER"
+        ? await updateOwnerProfileApi({ firstName, lastName, phoneNumber })
+        : await updateProfileApi({ firstName, lastName, phoneNumber });
       return response.user;
     } catch (error) {
       return rejectWithValue(error.message || "Failed to update profile");
@@ -105,14 +114,13 @@ export const changePassword = createAsyncThunk(
   "user/changePassword",
   async (
     { currentPassword, newPassword, confirmPassword },
-    { rejectWithValue }
+    { rejectWithValue, getState }
   ) => {
     try {
-      const response = await changePasswordApi(
-        currentPassword,
-        newPassword,
-        confirmPassword
-      );
+      const role = getState().user.userRole;
+      const response = role === "HOTEL_OWNER"
+        ? await changeOwnerPasswordApi(currentPassword, newPassword, confirmPassword)
+        : await changePasswordApi(currentPassword, newPassword, confirmPassword);
       return response;
     } catch (error) {
       return rejectWithValue(error.message || "Failed to change password");
@@ -381,6 +389,41 @@ const userSlice = createSlice({
         state.loading = false;
         state.error = null;
         state.wallet = null;
+      })
+
+      // FETCH CURRENT USER
+      .addCase(fetchCurrentUser.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchCurrentUser.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload) {
+          state.user = action.payload;
+          localStorage.setItem("user", JSON.stringify(action.payload));
+        }
+      })
+      .addCase(fetchCurrentUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // UPDATE PROFILE
+      .addCase(updateProfile.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload) {
+          state.user = action.payload;
+          localStorage.setItem("user", JSON.stringify(action.payload));
+        }
+      })
+
+      // UPLOAD PROFILE PHOTO
+      .addCase(uploadProfilePhoto.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload) {
+          state.user = action.payload;
+          localStorage.setItem("user", JSON.stringify(action.payload));
+        }
       })
 
       // FETCH OWNER WALLET

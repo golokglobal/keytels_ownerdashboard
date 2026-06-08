@@ -86,6 +86,7 @@ export const Subscription = () => {
   const checkoutError      = useSelector(selectCheckoutError);
   const planActionLoading  = useSelector(selectPlanActionLoading);
   const planActionError    = useSelector(selectPlanActionError);
+  const currentPropertyCount = useSelector((state) => state.partneredhotels.hotels.length);
   const [selectedCode, setSelectedCode] = useState(null);
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [priceIdError, setPriceIdError] = useState(null);
@@ -103,18 +104,13 @@ export const Subscription = () => {
       setSelectedCode(null);
       return;
     }
-    const priceId = getBackendPriceId(plan);
-    if (!priceId) {
-      setPriceIdError("This plan is missing a backend Stripe price ID. Refresh plans or check the backend plan configuration.");
-      setSelectedCode(null);
-      return;
-    }
+    const priceId = getBackendPriceId(plan) || undefined;
     try {
       if (billing?.subscriptionActive) {
-        await dispatch(changePlan({ ownerId, newPlanCode: plan.code, newPriceId: priceId })).unwrap();
+        await dispatch(changePlan({ ownerId, newPlanCode: plan.code, newPriceId: priceId, currentPropertyCount })).unwrap();
         dispatch(fetchOwnerBilling(ownerId));
       } else {
-        const data = await dispatch(startCheckout({ ownerId, planCode: plan.code, priceId })).unwrap();
+        const data = await dispatch(startCheckout({ ownerId, planCode: plan.code, priceId, currentPropertyCount })).unwrap();
         if (data?.checkoutUrl) window.location.href = data.checkoutUrl;
       }
     } catch {

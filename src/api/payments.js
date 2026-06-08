@@ -70,14 +70,16 @@ export const listSubscriptionPlans = async () => {
 // ─── Subscription Actions ─────────────────────────────────────────────────────
 
 // POST /owner-billing/subscriptions/checkout
-// Body:     { ownerId, planCode, priceId?, successUrl, cancelUrl }
+// Body:     { ownerId, planCode, priceId?, couponCode?, currentPropertyCount?, successUrl, cancelUrl }
 // Response: OwnerSubscriptionCheckoutResponseDto { checkoutUrl, sessionId }
-export const createSubscriptionCheckout = async ({ ownerId, planCode, priceId }) => {
+export const createSubscriptionCheckout = async ({ ownerId, planCode, priceId, couponCode, currentPropertyCount }) => {
   const base = window.location.origin;
   const response = await api.post('/owner-billing/subscriptions/checkout', {
     ownerId,
     planCode,
-    ...(priceId ? { priceId } : {}),
+    ...(priceId          ? { priceId }          : {}),
+    ...(couponCode       ? { couponCode }        : {}),
+    ...(currentPropertyCount != null ? { currentPropertyCount } : {}),
     successUrl: `${base}/payment-success`,
     cancelUrl:  `${base}/choose-plan`,
   });
@@ -85,18 +87,19 @@ export const createSubscriptionCheckout = async ({ ownerId, planCode, priceId })
 };
 
 // POST /owner-billing/subscriptions/change-plan
-// Body:     { ownerId, planCode, priceId? }
+// Body:     { ownerId, planCode, priceId?, currentPropertyCount? }
 // Response: OwnerBillingStatusDto (updated billing status)
-export const changeSubscriptionPlan = async ({ ownerId, planCode, priceId, newPlanCode, newPriceId }) => {
+export const changeSubscriptionPlan = async ({ ownerId, planCode, priceId, newPlanCode, newPriceId, currentPropertyCount }) => {
   const resolvedPlanCode = planCode ?? newPlanCode;
-  const resolvedPriceId = priceId ?? newPriceId;
+  const resolvedPriceId  = priceId  ?? newPriceId;
   if (!resolvedPlanCode) {
     throw new Error("planCode is required");
   }
   const response = await api.post('/owner-billing/subscriptions/change-plan', {
     ownerId,
     planCode: resolvedPlanCode,
-    ...(resolvedPriceId ? { priceId: resolvedPriceId } : {}),
+    ...(resolvedPriceId      ? { priceId: resolvedPriceId }   : {}),
+    ...(currentPropertyCount != null ? { currentPropertyCount } : {}),
   });
   return response.data;
 };
@@ -140,12 +143,38 @@ export const syncCheckout = async (ownerId, sessionId) => {
   return response.data;
 };
 
+// ─── Property Subscription Adjustments ───────────────────────────────────────
+
+// POST /owner-billing/{ownerId}/add-property
+// Called automatically by duffel-service on hotel create; can also be called directly.
+// Response: OwnerBillingStatusDto
+export const addPropertyToSubscription = async (ownerId) => {
+  const response = await api.post(`/owner-billing/${ownerId}/add-property`);
+  return response.data;
+};
+
+// POST /owner-billing/{ownerId}/remove-property
+// Called automatically by duffel-service on hotel delete; can also be called directly.
+// Response: OwnerBillingStatusDto
+export const removePropertyFromSubscription = async (ownerId) => {
+  const response = await api.post(`/owner-billing/${ownerId}/remove-property`);
+  return response.data;
+};
+
 // ─── Owner Billing Provision ──────────────────────────────────────────────────
 
 // POST /owner-billing/provision
-// Body:     { ownerId, email, businessName? }
+// Body:     { ownerId, firstName, lastName, email, refreshUrl, returnUrl }
 // Response: OwnerBillingProvisionResponseDto { stripeAccountId, onboardingUrl }
-export const provisionOwnerBilling = async ({ ownerId, email, firstName, lastName }) => {
-  const response = await api.post('/owner-billing/provision', { ownerId, email, firstName, lastName });
+export const provisionOwnerBilling = async ({ ownerId, email, firstName, lastName, refreshUrl, returnUrl }) => {
+  const base = window.location.origin;
+  const response = await api.post('/owner-billing/provision', {
+    ownerId,
+    email,
+    firstName,
+    lastName,
+    refreshUrl: refreshUrl || `${base}/subscription`,
+    returnUrl:  returnUrl  || `${base}/subscription`,
+  });
   return response.data;
 };

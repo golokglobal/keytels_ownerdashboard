@@ -11,6 +11,7 @@ import {
   selectWallet,
   selectWalletLoading,
   selectWalletError,
+  selectUserRole,
 } from "../store/slices/userSlice";
 import { X, Save, Key, User, Mail, Phone, Lock, Check, AlertCircle, Wallet, ArrowUpRight, ArrowDownLeft, RefreshCw } from 'lucide-react';
 import { S3ImageUpload } from '../components/shared/S3ImageUpload';
@@ -27,6 +28,7 @@ const Profile = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user, loading, error, isAuthenticated } = useSelector((state) => state.user);
+  const userRole = useSelector(selectUserRole);
   const walletData = useSelector(selectWallet);
   const walletLoading = useSelector(selectWalletLoading);
   const walletError = useSelector(selectWalletError);
@@ -53,6 +55,10 @@ const Profile = () => {
   const fetchWalletData = () => {
     dispatch(fetchOwnerWallet());
   };
+
+  useEffect(() => {
+    dispatch(fetchCurrentUser());
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'wallet') {

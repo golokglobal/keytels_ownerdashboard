@@ -26,6 +26,46 @@ export default defineConfig({
       // ───────────────────────────────────────────────
       // IMPORTANT: Specific routes MUST come before generic fallback
       // ───────────────────────────────────────────────
+      '/api/support-tickets': {
+        target: 'http://localhost:8082',  // admin-service — unified support ticket system
+        // target: BACKEND, // SERVER
+        changeOrigin: true,
+        secure: false,
+        configure: stripWWWAuthenticate,
+      },
+
+      '/api/payments': {
+        target: 'http://localhost:8089',  // payment-service
+        // target: BACKEND, // SERVER
+        changeOrigin: true,
+        secure: false,
+        configure: stripWWWAuthenticate,
+      },
+
+      '/api/reviews': {
+        target: 'http://localhost:8084',  // duffel-service
+        // target: BACKEND, // SERVER
+        changeOrigin: true,
+        secure: false,
+        configure: stripWWWAuthenticate,
+      },
+
+      '/api/stays': {
+        target: 'http://localhost:8084',  // duffel-service
+        // target: BACKEND, // SERVER
+        changeOrigin: true,
+        secure: false,
+        configure: stripWWWAuthenticate,
+      },
+
+      '/sms': {
+        target: 'http://localhost:8089',  // payment-service (SMS controller)
+        // target: BACKEND, // SERVER
+        changeOrigin: true,
+        secure: false,
+        configure: stripWWWAuthenticate,
+      },
+
       '/api/owner-billing': {
         target: 'http://localhost:8089',  // billing service
         // target: BACKEND, // SERVER
@@ -59,7 +99,7 @@ export default defineConfig({
       },
 
       '/api/users': {
-        target: 'http://localhost:8084',
+        target: 'http://localhost:8081',
         // target: BACKEND, // SERVER
         changeOrigin: true,
         secure: false,

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Zap, Hotel, Loader2, AlertCircle, Clock, LogIn,
-  CheckCircle2, XCircle, RefreshCw, Percent,
+  CheckCircle2, XCircle, RefreshCw, Percent, Info,
 } from "lucide-react";
 import {
   startCheckout,
@@ -39,13 +39,18 @@ const PlanSkeleton = () => (
 );
 
 /* ── Single plan card ── */
-const PlanCard = ({ plan, onSubscribe, checkoutLoading, selectedCode, isLoggedIn }) => {
+const PlanCard = ({ plan, onSubscribe, checkoutLoading, selectedCode, isLoggedIn, currentPropertyCount }) => {
   const style     = PLAN_STYLE[plan.code] || PLAN_STYLE.SINGLE;
   const price     = getPriceDisplay(plan);
   const enabled   = getEnabledFeatures(plan);
   const disabled  = getDisabledFeatures(plan);
   const isLoading = checkoutLoading && selectedCode === plan.code;
   const isFree    = plan.code === "FREE";
+
+  // MULTI requires at least 1 hotel — block and guide the owner
+  const isMultiBlocked = plan.code === "MULTI" && isLoggedIn && currentPropertyCount === 0;
+  // FRANCHISE billing note — base fee charged immediately, per-property only as hotels are added
+  const showFranchiseNote = plan.code === "FRANCHISE" && plan.baseFeeUsd != null;
 
   return (
     <motion.div
@@ -146,13 +151,34 @@ const PlanCard = ({ plan, onSubscribe, checkoutLoading, selectedCode, isLoggedIn
             Commission-based access — no dashboard features included.
           </p>
         )}
+
+        {/* FRANCHISE billing transparency note */}
+        {showFranchiseNote && (
+          <div className="flex items-start gap-2 px-3 py-2.5 bg-purple-500/10 border border-purple-500/20 rounded-lg mt-2">
+            <Info className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-purple-300 leading-relaxed">
+              Base fee is charged immediately. Per-property fee is only added to your subscription as you list hotels — nothing extra until you do.
+            </p>
+          </div>
+        )}
+
+        {/* MULTI blocked — no hotels yet */}
+        {isMultiBlocked && (
+          <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg mt-2">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-300 leading-relaxed">
+              Add at least 1 hotel to your account first, then subscribe to Multi.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* CTA */}
       <div className="px-6 pb-7">
         <button
-          onClick={() => onSubscribe(plan)}
-          disabled={checkoutLoading}
+          onClick={() => !isMultiBlocked && onSubscribe(plan)}
+          disabled={checkoutLoading || isMultiBlocked}
+          title={isMultiBlocked ? "Add a hotel first before subscribing to Multi" : undefined}
           className={`flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-bold text-sm transition-all
             disabled:opacity-60 disabled:cursor-not-allowed
             ${style.highlight
@@ -167,6 +193,8 @@ const PlanCard = ({ plan, onSubscribe, checkoutLoading, selectedCode, isLoggedIn
             <><Loader2 className="w-4 h-4 animate-spin" /> Please wait…</>
           ) : !isLoggedIn ? (
             <><LogIn className="w-4 h-4" /> Login to get started</>
+          ) : isMultiBlocked ? (
+            <><Hotel className="w-4 h-4" /> Add a hotel first</>
           ) : isFree ? (
             <><Zap className="w-4 h-4" /> Start for free</>
           ) : (
@@ -184,13 +212,14 @@ const PlanCard = ({ plan, onSubscribe, checkoutLoading, selectedCode, isLoggedIn
 export const ChoosePlan = () => {
   const dispatch        = useDispatch();
   const navigate        = useNavigate();
-  const ownerId         = useSelector(selectUserId);
-  const user            = useSelector(selectCurrentUser);
-  const plans           = useSelector(selectPlans);
-  const plansLoading    = useSelector(selectPlansLoading);
-  const plansError      = useSelector(selectPlansError);
-  const checkoutLoading = useSelector(selectCheckoutLoading);
-  const checkoutError   = useSelector(selectCheckoutError);
+  const ownerId              = useSelector(selectUserId);
+  const user                 = useSelector(selectCurrentUser);
+  const plans                = useSelector(selectPlans);
+  const plansLoading         = useSelector(selectPlansLoading);
+  const plansError           = useSelector(selectPlansError);
+  const checkoutLoading      = useSelector(selectCheckoutLoading);
+  const checkoutError        = useSelector(selectCheckoutError);
+  const currentPropertyCount = useSelector((state) => state.partneredhotels.hotels.length);
   const [selectedCode, setSelectedCode] = useState(null);
   const [priceIdError, setPriceIdError] = useState(null);
 
@@ -213,18 +242,13 @@ export const ChoosePlan = () => {
       return;
     }
     const priceId = getBackendPriceId(plan);
-    if (!priceId) {
-      setPriceIdError("This plan is missing a backend Stripe price ID. Refresh plans or check the backend plan configuration.");
-      setSelectedCode(null);
-      return;
-    }
     try {
       const data = await dispatch(
-        startCheckout({ ownerId, planCode: plan.code, priceId })
+        startCheckout({ ownerId, planCode: plan.code, priceId: priceId || undefined, currentPropertyCount })
       ).unwrap();
       if (data?.checkoutUrl) window.location.href = data.checkoutUrl;
     } catch {
-      // error in Redux state via checkoutError
+      // error surfaced via checkoutError selector
     }
   };
 
@@ -292,6 +316,7 @@ export const ChoosePlan = () => {
                       checkoutLoading={checkoutLoading}
                       selectedCode={selectedCode}
                       isLoggedIn={isLoggedIn}
+                      currentPropertyCount={currentPropertyCount}
                     />
                   </motion.div>
                 ))}

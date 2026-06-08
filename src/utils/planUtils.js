@@ -26,11 +26,24 @@ export const PLAN_STYLE = {
 };
 
 /**
- * Build the price line from a plan object.
- * Returns: { primary, sub } — both strings, null if not applicable.
- * Never hardcodes any value — all data comes from the plan object.
+ * Build the price display from a plan object.
+ * Returns: { amount, unit, sub } — never hardcodes values.
+ *
+ * FRANCHISE returns baseFeeUsd as the headline + per-property as the sub-line.
  */
 export const getPriceDisplay = (plan) => {
+  // FRANCHISE: base monthly fee + per-property fee
+  if (plan.baseFeeUsd != null) {
+    const perProp = plan.perPropertyMonthlyPriceUsd;
+    return {
+      amount: `$${plan.baseFeeUsd.toLocaleString()}`,
+      unit: "/mo base",
+      sub: perProp != null
+        ? `+ $${perProp.toLocaleString()}/property/mo · charged as you add hotels`
+        : "Base fee only until you add hotels",
+    };
+  }
+  // SINGLE: flat monthly fee
   if (plan.monthlyPriceUsd != null) {
     return {
       amount: `$${plan.monthlyPriceUsd.toLocaleString()}`,
@@ -38,14 +51,15 @@ export const getPriceDisplay = (plan) => {
       sub: null,
     };
   }
+  // MULTI: per-property fee only
   if (plan.perPropertyMonthlyPriceUsd != null) {
     return {
       amount: `$${plan.perPropertyMonthlyPriceUsd.toLocaleString()}`,
       unit: "/property/mo",
-      sub: "Billed per property",
+      sub: "Billed per active property · requires 1+ hotels",
     };
   }
-  // Neither price set → free / commission-only
+  // FREE / commission-only
   return {
     amount: "Free",
     unit: "",
