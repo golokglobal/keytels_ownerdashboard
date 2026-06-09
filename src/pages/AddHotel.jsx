@@ -206,11 +206,11 @@ export const AddHotel = () => {
   const isOwner  = useSelector(selectIsHotelOwner);
   const billing  = useSelector(selectBilling);
 
-  const hasPaidSubscription = !!(
+  const PER_PROPERTY_PLANS = ["MULTI", "FRANCHISE"];
+  const hasPerPropertyBilling = !!(
     billing &&
-    billing.subscriptionPlan &&
-    billing.subscriptionPlan !== "FREE" &&
-    (billing.subscriptionStatus === "ACTIVE" || billing.subscriptionStatus === "TRIALING")
+    PER_PROPERTY_PLANS.includes(billing.subscriptionPlan) &&
+    (billing.subscriptionStatus === "ACTIVE" || billing.subscriptionStatus === "TRIALING" || billing.subscriptionStatus === "active")
   );
   /* ─────────────────────── STATE ─────────────────────── */
   const [formData, setFormData] = useState({
@@ -1184,7 +1184,7 @@ export const AddHotel = () => {
         </div>
       )}
 
-      {hasPaidSubscription && (
+      {hasPerPropertyBilling && (
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-3">
           <CreditCard className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
           <div>

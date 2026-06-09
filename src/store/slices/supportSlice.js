@@ -3,12 +3,14 @@ import { fetchTickets } from '../../api/support';
 
 export const loadTickets = createAsyncThunk(
   'support/loadTickets',
-  async (filters, { rejectWithValue }) => {
+  async (filters = {}, { rejectWithValue }) => {
     try {
       const response = await fetchTickets(filters);
       return response?.tickets || [];
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to load tickets');
+      return rejectWithValue(
+        error?.response?.data?.error || error.message || 'Failed to load tickets'
+      );
     }
   }
 );

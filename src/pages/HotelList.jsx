@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
+import { fetchRoomsByHotel, fetchRoomImages } from '../store/slices/PartnerHotelslice';
 import {
   fetchHotelById,
   fetchOwnerHotels,

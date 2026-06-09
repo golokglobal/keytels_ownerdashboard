@@ -195,7 +195,7 @@ export const LocationPicker = ({ value = {}, onChange }) => {
         });
         const res = await fetch(
           `${NOMINATIM}/search?${params}`,
-          { headers: { "Accept-Language": "en", "User-Agent": "KeytelsOwnerDashboard/1.0" } }
+          { headers: { "Accept-Language": "en", "User-Agent": "DesineyOwnerDashboard/1.0" } }
         );
         const data = await res.json();
         // De-dupe by display_name and keep max 8

@@ -16,7 +16,13 @@ import {
   selectCheckoutError,
 } from "../../store/slices/paymentsSlice";
 import { selectUserId } from "../../store/slices/userSlice";
-import { PLAN_STYLE, getPriceDisplay, getEnabledFeatures } from "../../utils/planUtils";
+import {
+  PLAN_STYLE,
+  getPriceDisplay,
+  getEnabledFeatures,
+  getBackendPriceId,
+  isPaidSubscriptionPlan,
+} from "../../utils/planUtils";
 
 const PlanSkeleton = () => (
   <div className="rounded-2xl border border-white/10 bg-white/5 animate-pulse p-6 flex flex-col gap-3">
@@ -39,6 +45,7 @@ export const SubscriptionExpired = () => {
   const checkoutLoading = useSelector(selectCheckoutLoading);
   const checkoutError   = useSelector(selectCheckoutError);
   const [selectedCode, setSelectedCode] = useState(null);
+  const [priceIdError, setPriceIdError] = useState(null);
 
   useEffect(() => {
     if (!plans.length) dispatch(fetchSubscriptionPlans());
@@ -48,10 +55,21 @@ export const SubscriptionExpired = () => {
 
   const handleReactivate = async (plan) => {
     if (!ownerId || checkoutLoading) return;
+    setPriceIdError(null);
     setSelectedCode(plan.code);
+    if (!isPaidSubscriptionPlan(plan)) {
+      setSelectedCode(null);
+      return;
+    }
+    const priceId = getBackendPriceId(plan);
+    if (!priceId) {
+      setPriceIdError("This plan is missing a backend Stripe price ID. Refresh plans or check the backend plan configuration.");
+      setSelectedCode(null);
+      return;
+    }
     try {
       const data = await dispatch(
-        startCheckout({ ownerId, planCode: plan.code })
+        startCheckout({ ownerId, planCode: plan.code, priceId })
       ).unwrap();
       if (data?.checkoutUrl) window.location.href = data.checkoutUrl;
     } catch {
@@ -70,7 +88,7 @@ export const SubscriptionExpired = () => {
         <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
           <Hotel className="w-5 h-5 text-white" />
         </div>
-        <span className="text-white font-bold text-lg">Keytels</span>
+        <span className="text-white font-bold text-lg">Desiney</span>
       </div>
 
       <div className="flex-1 flex items-center justify-center px-4 py-12">
@@ -185,15 +203,15 @@ export const SubscriptionExpired = () => {
                 })}
           </div>
 
-          {checkoutError && (
+          {(checkoutError || priceIdError) && (
             <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm max-w-lg mx-auto">
               <AlertCircle className="w-4 h-4 shrink-0" />
-              {checkoutError}
+              {checkoutError || priceIdError}
             </div>
           )}
 
           <p className="text-center text-slate-600 text-xs mt-6">
-            Need help? Contact support@keytels.com
+            Need help? Contact support@desiney.com
           </p>
         </motion.div>
       </div>

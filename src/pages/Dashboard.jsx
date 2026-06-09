@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   DollarSign, Calendar, TrendingUp, Bed, Star,
@@ -71,6 +72,7 @@ const bookingColumns = [
 
 export const Dashboard = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { bookings, todayCheckIns, todayCheckOuts, summary: bookingSummary } = useSelector((s) => s.bookings);
   const { dashboardReviews, summary: reviewSummary } = useSelector((s) => s.reviews);
   const paymentsTotal  = useSelector(selectPaymentsTotal);
@@ -437,7 +439,7 @@ export const Dashboard = () => {
                 <h2 className="text-base font-bold text-slate-900">Bookings Summary</h2>
                 <p className="text-xs text-slate-500 mt-0.5">Live snapshot of your reservation activity</p>
               </div>
-              <button onClick={() => window.location.href = '/bookings'}
+              <button onClick={() => navigate('/bookings')}
                 className="text-sm text-violet-600 hover:text-violet-700 font-semibold flex items-center gap-1">
                 Manage <ArrowRight className="w-4 h-4" />
               </button>
@@ -564,7 +566,7 @@ export const Dashboard = () => {
               <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
               <p className="text-xs text-amber-700">
                 Pending actions?{' '}
-                <button onClick={() => window.location.href = '/bookings'} className="font-bold hover:underline">Go to Bookings</button>
+                <button onClick={() => navigate('/bookings')} className="font-bold hover:underline">Go to Bookings</button>
               </p>
             </div>
           </motion.div>
@@ -576,7 +578,7 @@ export const Dashboard = () => {
                 <span className="w-1 h-5 rounded-full bg-blue-500" />
                 Recent Bookings
               </h2>
-              <button onClick={() => window.location.href = '/bookings'}
+              <button onClick={() => navigate('/bookings')}
                 className="text-sm text-violet-600 hover:text-violet-700 font-semibold flex items-center gap-1">
                 View All <ArrowRight className="w-4 h-4" />
               </button>
@@ -600,7 +602,7 @@ export const Dashboard = () => {
                 <div className="absolute -top-8 -right-8 w-36 h-36 rounded-full bg-white/10" />
                 <div className="flex items-center justify-between mb-5">
                   <h2 className="text-base font-bold">Guest Reviews</h2>
-                  <button onClick={() => window.location.href = '/reviews'}
+                  <button onClick={() => navigate('/reviews')}
                     className="text-xs font-bold text-white/80 hover:text-white flex items-center gap-1">
                     View All <ArrowRight className="w-3.5 h-3.5" />
                   </button>

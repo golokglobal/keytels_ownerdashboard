@@ -25,7 +25,7 @@ const guestSlice = createSlice({
   initialState,
   reducers: {
     setGuests: (state, action) => {
-      state.guests = action.payload;
+      state.guests = Array.isArray(action.payload) ? action.payload : [];
       state.loading = false;
     },
     setLoading: (state, action) => {
@@ -53,7 +53,7 @@ const guestSlice = createSlice({
       })
       .addCase(loadGuests.fulfilled, (state, action) => {
         state.loading = false;
-        state.guests = action.payload;
+        state.guests = Array.isArray(action.payload) ? action.payload : [];
       })
       .addCase(loadGuests.rejected, (state, action) => {
         state.loading = false;

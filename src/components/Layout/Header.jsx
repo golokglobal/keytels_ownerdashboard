@@ -93,7 +93,7 @@ export const Header = ({ onMenuClick }) => {
             <Menu className="w-5 h-5 text-white/80" />
           </button>
           <div className="leading-none select-none">
-            <p className="text-sm font-bold text-white tracking-tight">Keytels</p>
+            <p className="text-sm font-bold text-white tracking-tight">Desiney</p>
             <p className="text-[9px] text-white/45 font-medium uppercase tracking-widest mt-0.5">owner central</p>
           </div>
         </div>

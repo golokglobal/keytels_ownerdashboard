@@ -28,6 +28,8 @@ import {
   getPriceDisplay,
   getEnabledFeatures,
   getDisabledFeatures,
+  getBackendPriceId,
+  isPaidSubscriptionPlan,
 } from "../utils/planUtils";
 
 /* ── helpers ── */
@@ -84,30 +86,31 @@ export const Subscription = () => {
   const checkoutError      = useSelector(selectCheckoutError);
   const planActionLoading  = useSelector(selectPlanActionLoading);
   const planActionError    = useSelector(selectPlanActionError);
+  const currentPropertyCount = useSelector((state) => state.partneredhotels.hotels.length);
   const [selectedCode, setSelectedCode] = useState(null);
   const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [priceIdError, setPriceIdError] = useState(null);
 
   useEffect(() => {
     if (ownerId && !billing)  dispatch(fetchOwnerBilling(ownerId));
     if (!plans.length)         dispatch(fetchSubscriptionPlans());
   }, [dispatch, ownerId, billing, plans.length]);
 
-  const PRICE_MAP = {
-    SINGLE:    import.meta.env.VITE_STRIPE_PRICE_SINGLE,
-    MULTI:     import.meta.env.VITE_STRIPE_PRICE_MULTI,
-    FRANCHISE: import.meta.env.VITE_STRIPE_PRICE_FRANCHISE,
-  };
-
   const handleChangePlan = async (plan) => {
     if (!ownerId || checkoutLoading || planActionLoading) return;
+    setPriceIdError(null);
     setSelectedCode(plan.code);
-    const priceId = plan.priceId || PRICE_MAP[plan.code];
+    if (!isPaidSubscriptionPlan(plan)) {
+      setSelectedCode(null);
+      return;
+    }
+    const priceId = getBackendPriceId(plan) || undefined;
     try {
       if (billing?.subscriptionActive) {
-        await dispatch(changePlan({ ownerId, newPlanCode: plan.code, newPriceId: priceId })).unwrap();
+        await dispatch(changePlan({ ownerId, newPlanCode: plan.code, newPriceId: priceId, currentPropertyCount })).unwrap();
         dispatch(fetchOwnerBilling(ownerId));
       } else {
-        const data = await dispatch(startCheckout({ ownerId, planCode: plan.code, priceId })).unwrap();
+        const data = await dispatch(startCheckout({ ownerId, planCode: plan.code, priceId, currentPropertyCount })).unwrap();
         if (data?.checkoutUrl) window.location.href = data.checkoutUrl;
       }
     } catch {
@@ -147,7 +150,7 @@ export const Subscription = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Subscription</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Manage your Keytels plan and billing details</p>
+          <p className="text-sm text-slate-500 mt-0.5">Manage your Desiney plan and billing details</p>
         </div>
         <button
           onClick={() => ownerId && dispatch(fetchOwnerBilling(ownerId))}
@@ -510,10 +513,10 @@ export const Subscription = () => {
               })}
         </div>
 
-        {checkoutError && (
+        {(checkoutError || priceIdError) && (
           <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
             <AlertCircle className="w-4 h-4 shrink-0" />
-            {checkoutError}
+            {checkoutError || priceIdError}
           </div>
         )}
 
@@ -529,8 +532,8 @@ export const Subscription = () => {
       <p className="text-xs text-slate-400 pb-4">
         Payments are processed securely by Stripe. Upgrades and downgrades take effect immediately with proration.
         New subscriptions redirect to Stripe Checkout. Contact{" "}
-        <a href="mailto:support@keytels.com" className="underline hover:text-slate-600">
-          support@keytels.com
+        <a href="mailto:support@desiney.com" className="underline hover:text-slate-600">
+          support@desiney.com
         </a>{" "}
         for billing questions.
       </p>

@@ -193,7 +193,7 @@ export const uploadProfilePhotoApi = async (photoUrl) => {
       throw new Error('Please use an actual image URL (http:// or https://), not base64');
     }
 
-    const response = await api.put('/users/profile/photo', null, {
+    const response = await api.put('/owners/profile/photo', null, {
       params: { photoUrl },
     });
 
@@ -209,6 +209,47 @@ export const uploadProfilePhotoApi = async (photoUrl) => {
 export const getOwnerWallet = async () => {
   console.warn('getOwnerWallet: endpoint /owners/wallet is not implemented in the backend');
   return null;
+};
+
+// ── Owner profile APIs (staff-service: /owners/*) ──
+export const getOwnerProfileApi = async () => {
+  try {
+    const response = await api.get('/owners/profile');
+    const user = response.data;
+    localStorage.setItem('user', JSON.stringify(user));
+    return { success: true, user };
+  } catch (error) {
+    throw new Error(error.response?.data?.message || 'Failed to fetch owner profile');
+  }
+};
+
+export const updateOwnerProfileApi = async (profileData) => {
+  try {
+    const response = await api.put('/owners/profile', profileData);
+    const user = response.data;
+    localStorage.setItem('user', JSON.stringify(user));
+    return { success: true, user };
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.message || error.response?.data?.error || 'Failed to update owner profile'
+    );
+  }
+};
+
+export const changeOwnerPasswordApi = async (currentPassword, newPassword, confirmPassword) => {
+  try {
+    const response = await api.put('/owners/profile/password', {
+      currentPassword,
+      newPassword,
+      confirmPassword,
+    });
+    return {
+      success: true,
+      message: response.data?.message || 'Password changed successfully',
+    };
+  } catch (error) {
+    throw new Error(error.response?.data?.message || 'Failed to change password');
+  }
 };
 
 export const changePasswordApi = async (currentPassword, newPassword, confirmPassword) => {
