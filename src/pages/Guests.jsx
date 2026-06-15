@@ -484,7 +484,7 @@ export const Guests = () => {
                     { label: 'Check-in',       value: selectedBooking.checkInDate ? new Date(selectedBooking.checkInDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
                     { label: 'Check-out',      value: selectedBooking.checkOutDate ? new Date(selectedBooking.checkOutDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
                     { label: 'Room',           value: selectedBooking.roomNumber || selectedBooking.roomType || (selectedBooking.roomId ? selectedBooking.roomId.slice(0, 8) + '…' : '—') },
-                    { label: 'Refund Status',  value: selectedBooking.refundStatus || 'N/A' },
+                    { label: 'Refund Status',  value: selectedBooking.refundStatus || 'NOT_REQUESTED' },
                   ].map(({ label, value }) => (
                     <div key={label} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
                       <p className="text-xs text-slate-500 mb-1">{label}</p>
