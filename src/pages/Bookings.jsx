@@ -13,6 +13,8 @@ import {
   X,
   DollarSign,
   RefreshCw,
+  Copy,
+  CreditCard,
 } from 'lucide-react';
 import { HotelSelector } from '../components/shared/HotelSelector';
 import { DataTable } from '../components/shared/DataTable';
@@ -28,6 +30,7 @@ import {
   checkOut,
   cancelBooking,
   fetchBookingPaymentDetails,
+  fetchRefundEligibility,
 } from '../store/slices/bookingSlice';
 import { selectPrimaryHotelId } from '../store/slices/userSlice';
 
@@ -53,6 +56,8 @@ export const Bookings = () => {
     summary,
     selectedBooking,
     paymentDetails,
+    refundEligibility,
+    refundEligibilityLoading,
     checkInLoading,
     checkOutLoading,
     cancelLoading,
@@ -103,6 +108,15 @@ export const Bookings = () => {
     return booking.guestName || 'Guest';
   };
 
+  // Copy to clipboard helper
+  const handleCopyReference = useCallback((ref, type = 'Reference') => {
+    navigator.clipboard.writeText(ref).then(() => {
+      toast.success(`${type} copied to clipboard!`);
+    }).catch(() => {
+      toast.error('Failed to copy');
+    });
+  }, []);
+
   // Filter bookings by search query
   const filteredBookings = useMemo(() => {
     if (!searchQuery.trim()) return bookings;
@@ -112,10 +126,19 @@ export const Bookings = () => {
       const guestName = getGuestName(booking).toLowerCase();
       const bookingId = booking.bookingId?.toLowerCase() || '';
       const roomId = booking.roomId?.toLowerCase() || '';
+      const bookingRef = booking.bookingReferenceNumber?.toLowerCase() || '';
+      const paymentRef = booking.paymentReferenceNumber?.toLowerCase() || '';
+      const email = booking.guest?.email?.toLowerCase() || '';
+      const phone = booking.guest?.phoneNumber?.toLowerCase() || '';
+
       return (
         guestName.includes(query) ||
         bookingId.includes(query) ||
-        roomId.includes(query)
+        roomId.includes(query) ||
+        bookingRef.includes(query) ||
+        paymentRef.includes(query) ||
+        email.includes(query) ||
+        phone.includes(query)
       );
     });
   }, [bookings, searchQuery]);
@@ -162,6 +185,7 @@ export const Bookings = () => {
     setShowDetailsModal(true);
     dispatch(fetchBookingById(bookingId));
     dispatch(fetchBookingPaymentDetails(bookingId));
+    dispatch(fetchRefundEligibility(bookingId));
   }, [bookings, dispatch]);
 
   // Get status counts from API summary
@@ -175,18 +199,59 @@ export const Bookings = () => {
 
   const columns = useMemo(() => [
     {
-      header: 'Booking ID',
+      header: 'Booking Ref',
       render: (row) => (
-        <span className="font-mono text-xs text-slate-600">
-          {row.bookingId?.substring(0, 8)}...
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-sm font-bold text-blue-600">
+            {row.bookingReferenceNumber || 'N/A'}
+          </span>
+          {row.bookingReferenceNumber && (
+            <button
+              onClick={() => handleCopyReference(row.bookingReferenceNumber, 'Booking reference')}
+              className="p-1 hover:bg-blue-50 rounded transition-colors"
+              title="Copy booking reference"
+            >
+              <Copy className="w-3 h-3 text-blue-600" />
+            </button>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: 'Payment Ref',
+      render: (row) => (
+        <div className="flex items-center gap-1.5">
+          {row.paymentReferenceNumber ? (
+            <>
+              <span className="font-mono text-sm font-bold text-green-600">
+                {row.paymentReferenceNumber}
+              </span>
+              <button
+                onClick={() => handleCopyReference(row.paymentReferenceNumber, 'Payment reference')}
+                className="p-1 hover:bg-green-50 rounded transition-colors"
+                title="Copy payment reference"
+              >
+                <Copy className="w-3 h-3 text-green-600" />
+              </button>
+            </>
+          ) : (
+            <span className="text-xs text-slate-400">N/A</span>
+          )}
+        </div>
       ),
     },
     {
       header: 'Guest',
       render: (row) => (
         <div>
-          <p className="font-medium text-slate-900">{getGuestName(row)}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="font-medium text-slate-900">{getGuestName(row)}</p>
+            {row.guest?.isGuestAccount && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                Guest
+              </span>
+            )}
+          </div>
           {row.guest?.email && (
             <p className="text-xs text-slate-500">{row.guest.email}</p>
           )}
@@ -200,6 +265,15 @@ export const Bookings = () => {
           {row.roomId?.substring(0, 8)}...
         </span>
       ),
+    },
+    {
+      header: 'Booked On',
+      render: (row) => row.createdAt ? (
+        <div>
+          <p className="text-sm whitespace-nowrap">{new Date(row.createdAt).toLocaleDateString()}</p>
+          <p className="text-xs text-slate-400 whitespace-nowrap">{new Date(row.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+        </div>
+      ) : <span className="text-xs text-slate-400">—</span>,
     },
     {
       header: 'Check-in',
@@ -236,12 +310,31 @@ export const Bookings = () => {
       ),
     },
     {
-      header: 'Payment',
+      header: 'Payment Status',
       render: (row) => (
         <span className={`px-2 py-1 rounded text-xs font-medium ${PAYMENT_STATUS_COLORS[row.paymentStatus] || 'bg-gray-100 text-gray-700'}`}>
           {row.paymentStatus}
         </span>
       ),
+    },
+    {
+      header: 'Payment Method',
+      render: (row) => {
+        const method = row.paymentMethod || 'PAY_NOW';
+        const isPayAtProperty = method === 'PAY_AT_PROPERTY';
+        return (
+          <div className="flex items-center gap-1.5">
+            <CreditCard className={`w-3.5 h-3.5 ${isPayAtProperty ? 'text-purple-600' : 'text-green-600'}`} />
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+              isPayAtProperty
+                ? 'bg-purple-100 text-purple-700'
+                : 'bg-green-100 text-green-700'
+            }`}>
+              {isPayAtProperty ? 'Pay at Hotel' : 'Paid Now'}
+            </span>
+          </div>
+        );
+      },
     },
     {
       header: 'Actions',
@@ -289,7 +382,7 @@ export const Bookings = () => {
         </div>
       ),
     },
-  ], [handleViewDetails, handleCheckIn, handleCheckOut, handleCancelBooking, checkInLoading, checkOutLoading, cancelLoading]);
+  ], [handleViewDetails, handleCheckIn, handleCheckOut, handleCancelBooking, handleCopyReference, checkInLoading, checkOutLoading, cancelLoading]);
 
   if (loading && bookings.length === 0) {
     return <BookingsSkeleton />;
@@ -544,7 +637,14 @@ export const Bookings = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-xs text-slate-500">Name</p>
-                      <p className="font-medium text-slate-900">{getGuestName(selectedBooking)}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-medium text-slate-900">{getGuestName(selectedBooking)}</p>
+                        {selectedBooking.guest?.isGuestAccount && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                            Guest
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <p className="text-xs text-slate-500">Email</p>
@@ -619,12 +719,81 @@ export const Bookings = () => {
                       </p>
                     </div>
                   </div>
+                  {paymentDetails.paymentMethod && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className="text-xs text-slate-500">Method:</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        paymentDetails.paymentMethod === 'PAY_NOW'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {paymentDetails.paymentMethod === 'PAY_NOW' ? '💳 Paid by card' : '🏨 Pay at hotel'}
+                      </span>
+                      {paymentDetails.cardBrand && paymentDetails.cardLast4 && (
+                        <span className="text-xs text-slate-500">
+                          {paymentDetails.cardBrand} ••••{paymentDetails.cardLast4}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {paymentDetails.refundPolicy && (
                     <p className="text-xs text-slate-500 mt-3 p-2 bg-white rounded border border-slate-200">
                       {paymentDetails.refundPolicy}
                     </p>
                   )}
                   </>
+                  )}
+                </div>
+
+                {/* Refund Eligibility */}
+                <div className={`rounded-lg p-4 border ${
+                  refundEligibilityLoading ? 'bg-slate-50 border-slate-200' :
+                  refundEligibility?.isRefundable ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-base">{refundEligibility?.isRefundable ? '✅' : '🚫'}</span>
+                    <h3 className="text-sm font-medium text-slate-700">Refund Eligibility</h3>
+                  </div>
+                  {refundEligibilityLoading ? (
+                    <div className="flex items-center gap-2 py-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-500 border-t-transparent" />
+                      <span className="text-xs text-slate-500">Checking eligibility…</span>
+                    </div>
+                  ) : refundEligibility ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-sm font-bold ${refundEligibility.isRefundable ? 'text-green-700' : 'text-red-700'}`}>
+                          {refundEligibility.isRefundable ? 'Eligible for Refund' : 'Not Refundable'}
+                        </span>
+                        {refundEligibility.policyType && (
+                          <span className="text-xs bg-white border border-slate-200 px-2 py-0.5 rounded-full text-slate-600 font-medium">
+                            {refundEligibility.policyType}
+                          </span>
+                        )}
+                      </div>
+                      {refundEligibility.isRefundable && (
+                        <div className="grid grid-cols-2 gap-3 mt-2">
+                          <div>
+                            <p className="text-xs text-slate-500">Refund Amount</p>
+                            <p className="text-lg font-bold text-green-700">
+                              ${Number(refundEligibility.refundAmount || 0).toFixed(2)}
+                              {refundEligibility.refundPercentage != null && refundEligibility.refundPercentage < 100 && (
+                                <span className="text-xs font-normal text-green-600 ml-1">({refundEligibility.refundPercentage}%)</span>
+                              )}
+                            </p>
+                          </div>
+                          {refundEligibility.daysUntilCheckIn != null && (
+                            <div>
+                              <p className="text-xs text-slate-500">Days Until Check-in</p>
+                              <p className="text-lg font-bold text-slate-700">{refundEligibility.daysUntilCheckIn}d</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <p className="text-xs text-slate-600 mt-1">{refundEligibility.message}</p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500">Eligibility unavailable</p>
                   )}
                 </div>
 

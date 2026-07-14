@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import PhoneInput from 'react-phone-input-2';
+import 'react-phone-input-2/lib/style.css';
 import {
   fetchCurrentUser,
   updateProfile,
@@ -460,18 +462,17 @@ const Profile = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Phone Number
                   </label>
-                  <div className="relative">
-                    <Phone size={18} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="tel"
-                      name="phoneNumber"
-                      value={profileForm.phoneNumber}
-                      onChange={handleProfileChange}
-                      className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 rounded-xl input-focus transition-all"
-                      placeholder="Phone Number"
-                      disabled={loading || uploadingPhoto}
-                    />
-                  </div>
+                  <PhoneInput
+                    country="us"
+                    value={(profileForm.phoneNumber || '').replace(/^\+/, '')}
+                    onChange={(value) => setProfileForm(prev => ({ ...prev, phoneNumber: '+' + value }))}
+                    disabled={loading || uploadingPhoto}
+                    inputClass="!w-full !py-3 !border-2 !border-slate-200 !rounded-xl !outline-none !transition-all"
+                    containerClass="!w-full"
+                    buttonClass="!border-2 !border-slate-200 !rounded-l-xl"
+                    enableSearch
+                    searchPlaceholder="Search country..."
+                  />
                 </div>
               </div>
 

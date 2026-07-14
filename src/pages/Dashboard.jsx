@@ -30,6 +30,7 @@ import {
   selectBilling,
 } from '../store/slices/paymentsSlice';
 import { provisionOwnerBilling } from '../api/payments';
+import { isBillingSubscriptionActive } from '../utils/subscriptionUtils';
 
 const getGuestName = (b) => {
   if (b.guest) {
@@ -155,8 +156,93 @@ export const Dashboard = () => {
 
   const hotelRevenue = revenue?.totalRevenue ?? revenue?.revenue ?? revenue?.amount ?? paymentsTotal ?? 0;
 
+  // Subscription alert state
+  const subStatus = billing?.subscriptionStatus?.toUpperCase();
+  const isSubscriptionActive = isBillingSubscriptionActive(billing);
+  const isPastDue  = isSubscriptionActive && subStatus === 'PAST_DUE';
+  const isCancelled = !isSubscriptionActive && (subStatus === 'CANCELLED' || subStatus === 'CANCELED' || !!billing?.subscriptionCurrentPeriodEnd);
+  const isTrialing  = subStatus === 'TRIALING';
+  const periodEnd   = billing?.subscriptionCurrentPeriodEnd;
+  const daysToEnd   = periodEnd
+    ? Math.max(0, Math.ceil((new Date(periodEnd) - new Date()) / 86400000))
+    : null;
+  const trialEndingSoon = isTrialing && daysToEnd != null && daysToEnd <= 7;
+
   return (
     <div className="space-y-8">
+
+      {/* ═══════════════════════════════════════════════════════════
+          SUBSCRIPTION ALERT BANNERS
+      ═══════════════════════════════════════════════════════════ */}
+
+      {isPastDue && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 px-6 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-red-900">Subscription payment failed — action required</p>
+                <p className="text-xs text-red-700 mt-0.5">
+                  Your subscription is past due. Update your payment method to avoid service interruption.
+                </p>
+              </div>
+            </div>
+            <button onClick={() => navigate('/subscription')}
+              className="shrink-0 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm">
+              Update Payment Method
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {isCancelled && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-slate-300 bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <div className="w-9 h-9 rounded-xl bg-slate-200 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5 text-slate-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-900">Your subscription has been cancelled</p>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Reactivate your subscription to continue listing your properties and receiving bookings.
+                </p>
+              </div>
+            </div>
+            <button onClick={() => navigate('/subscription')}
+              className="shrink-0 px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold rounded-xl transition-all shadow-sm">
+              Reactivate Subscription
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {trialEndingSoon && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-blue-900">Trial ending in {daysToEnd} day{daysToEnd !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-blue-700 mt-0.5">
+                  Add a payment method before your trial ends to keep your listings active.
+                </p>
+              </div>
+            </div>
+            <button onClick={() => navigate('/subscription')}
+              className="shrink-0 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm">
+              Add Payment Method
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       {/* ═══════════════════════════════════════════════════════════
           STRIPE ONBOARDING BANNERS

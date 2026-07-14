@@ -164,6 +164,19 @@ export const fetchBookingPaymentDetails = createAsyncThunk(
   }
 );
 
+export const fetchRefundEligibility = createAsyncThunk(
+  'bookings/fetchRefundEligibility',
+  async (bookingId, { rejectWithValue }) => {
+    try {
+      const response = await api.getRefundEligibility(bookingId);
+      return response;
+    } catch (error) {
+      console.error('❌ Error fetching refund eligibility:', error);
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch refund eligibility');
+    }
+  }
+);
+
 
 /* ============================ SLICE ============================ */
 
@@ -173,6 +186,8 @@ const initialState = {
   todayCheckOuts: [],
   selectedBooking: null,
   paymentDetails: null,
+  refundEligibility: null,
+  refundEligibilityLoading: false,
   summary: null,
   revenue: null,
   loading: false,
@@ -315,6 +330,20 @@ const bookingSlice = createSlice({
       // ────────────── FETCH PAYMENT DETAILS ──────────────
       .addCase(fetchBookingPaymentDetails.fulfilled, (state, action) => {
         state.paymentDetails = action.payload;
+      })
+
+      // ────────────── FETCH REFUND ELIGIBILITY ──────────────
+      .addCase(fetchRefundEligibility.pending, (state) => {
+        state.refundEligibilityLoading = true;
+        state.refundEligibility = null;
+      })
+      .addCase(fetchRefundEligibility.fulfilled, (state, action) => {
+        state.refundEligibilityLoading = false;
+        state.refundEligibility = action.payload;
+      })
+      .addCase(fetchRefundEligibility.rejected, (state) => {
+        state.refundEligibilityLoading = false;
+        state.refundEligibility = null;
       });
   },
 });

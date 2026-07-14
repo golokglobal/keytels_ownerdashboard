@@ -19,7 +19,9 @@ export const clearTokenCache = ()       => { _cachedToken = null; };
 // Endpoints that are intentionally unauthenticated — no token sent, no logout on 401
 const PUBLIC_ENDPOINTS = [
   "/staff/login",
+  "/staff/auth/google",
   "/owners/login",
+  "/owners/auth/google",
   "/users/register",
   "/users/forgot-password",
   "/users/reset-password",
@@ -81,7 +83,9 @@ api.interceptors.response.use(
     // Login / register endpoints returning 401 = wrong credentials — do NOT logout
     const isAuthEndpoint = [
       "/staff/login",
+      "/staff/auth/google",
       "/owners/login",
+      "/owners/auth/google",
       "/users/register",
       "/users/forgot-password",
       "/users/reset-password",

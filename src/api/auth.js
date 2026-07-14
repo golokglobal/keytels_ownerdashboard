@@ -267,3 +267,20 @@ export const changePasswordApi = async (currentPassword, newPassword, confirmPas
     throw new Error(error.response?.data?.message || 'Failed to change password');
   }
 };
+
+// ── Google OAuth2 ─────────────────────────────────────────────────────────────
+
+/**
+ * Google login for hotel staff/manager — POST /api/staff/auth/google
+ * Uses the same loginApi pattern so setTokenCache + localStorage are set consistently.
+ */
+export const googleStaffLoginApi = async (idToken) => {
+  return loginApi('/staff/auth/google', { idToken });
+};
+
+/**
+ * Google login for hotel owner — POST /api/owners/auth/google
+ */
+export const googleOwnerLoginApi = async (idToken) => {
+  return loginApi('/owners/auth/google', { idToken });
+};

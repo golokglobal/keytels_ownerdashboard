@@ -248,7 +248,21 @@ export const Staff = () => {
     },
     {
       header: 'Joined',
-      render: (row) => row.createdAt ? new Date(row.createdAt).toLocaleDateString() : '—',
+      render: (row) => row.createdAt ? (
+        <div>
+          <p className="text-sm">{new Date(row.createdAt).toLocaleDateString()}</p>
+          <p className="text-xs text-slate-400">{new Date(row.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+        </div>
+      ) : '—',
+    },
+    {
+      header: 'Last Modified',
+      render: (row) => row.updatedAt ? (
+        <div>
+          <p className="text-sm">{new Date(row.updatedAt).toLocaleDateString()}</p>
+          <p className="text-xs text-slate-400">{new Date(row.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+        </div>
+      ) : '—',
     },
     {
       header: 'Actions',

@@ -3,6 +3,8 @@ import { useDispatch } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Hotel, Mail, Lock, User, Building, ArrowRight } from 'lucide-react';
+import PhoneInput from 'react-phone-input-2';
+import 'react-phone-input-2/lib/style.css';
 import { signupUser } from '../../store/slices/userSlice';
 import { Loader } from '../../components/common/Loader';
 
@@ -41,7 +43,7 @@ export const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4" style={{ fontFamily: "'Outfit', sans-serif" }}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -99,6 +101,22 @@ export const Register = () => {
                   required
                 />
               </div>
+            </div>
+
+            {/* Phone Number */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Phone Number</label>
+              <PhoneInput
+                country="us"
+                value={formData.phoneNumber.replace(/^\+/, '')}
+                onChange={(value) => setFormData({ ...formData, phoneNumber: '+' + value })}
+                inputClass="!w-full !py-3 !border !border-slate-300 !rounded-lg focus:!ring-2 focus:!ring-blue-500 focus:!border-transparent !outline-none !transition-all"
+                containerClass="!w-full"
+                buttonClass="!border !border-slate-300 !rounded-l-lg"
+                placeholder="Enter phone number"
+                enableSearch
+                searchPlaceholder="Search country..."
+              />
             </div>
 
             {/* Hotel Name */}

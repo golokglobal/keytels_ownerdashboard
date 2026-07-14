@@ -4,9 +4,9 @@ import api from '../config/axiosConfig';
 
 // GET /hotels/{hotelId}/bookings[?bookingStatus=&paymentStatus=&refundStatus=]
 // Response: BookingDto[] {
-//   bookingId, hotelId, roomId, userId, guestName, guestEmail,
-//   checkInDate, checkOutDate, bookingStatus, paymentStatus, refundStatus,
-//   totalAmount, currency, createdAt, updatedAt
+//   bookingId, bookingReferenceNumber, hotelId, roomId, userId, guestName, guestEmail,
+//   checkInDate, checkOutDate, bookingStatus, paymentStatus, paymentMethod, refundStatus,
+//   totalAmount, currency, expiresAt, isExpired, createdAt, updatedAt
 // }
 export const getHotelBookings = (hotelId, params = {}) => {
   const queryParams = new URLSearchParams();
@@ -81,8 +81,51 @@ export const getHotelRevenue = (hotelId, fromDate, toDate) => {
 export const getBookingPaymentDetails = (bookingId) =>
   api.get(`/bookings/${bookingId}/payment`).then(res => res.data);
 
+// GET /partneredhotel/bookings/{bookingId}/refund-eligibility
+// Response: RefundEligibilityDto { bookingId, isRefundable, refundAmount, totalAmount,
+//           refundPercentage, currency, policyType, message, checkInDate, daysUntilCheckIn }
+export const getRefundEligibility = (bookingId) =>
+  api.get(`/partneredhotel/bookings/${bookingId}/refund-eligibility`).then(res => res.data);
+
 // POST /payments/create — create/charge payment for a booking
 // Body:     { bookingId, userId, amount, currency }
 // Response: PaymentDto
 export const processPayment = ({ bookingId, userId, amount, currency = 'usd' }) =>
   api.post('/payments/create', { bookingId, userId, amount, currency }).then(res => res.data);
+
+// POST /payments/release-transfer — release held booking funds to owner's Stripe account
+// Body:     { bookingId }
+// Response: { status, transferId, amount, currency }
+// Called immediately after staff confirms guest check-in.
+export const releaseTransferToOwner = (bookingId) =>
+  api.post('/payments/release-transfer', { bookingId }).then(res => res.data);
+
+// ─── Search Bookings ─────────────────────────────────────────────────────────
+
+// GET /partneredhotel/bookings/search
+// Query params: {
+//   searchTerm, userId, hotelId, bookingStatus, paymentStatus,
+//   checkInFrom, checkInTo, checkOutFrom, checkOutTo,
+//   page, size, sortBy, sortDirection
+// }
+// Response: { content: [...], totalElements, totalPages, size, number, ... }
+export const searchBookings = (criteria = {}) => {
+  const params = new URLSearchParams();
+
+  if (criteria.searchTerm) params.append('searchTerm', criteria.searchTerm);
+  if (criteria.userId) params.append('userId', criteria.userId);
+  if (criteria.hotelId) params.append('hotelId', criteria.hotelId);
+  if (criteria.bookingStatus) params.append('bookingStatus', criteria.bookingStatus);
+  if (criteria.paymentStatus) params.append('paymentStatus', criteria.paymentStatus);
+  if (criteria.checkInFrom) params.append('checkInFrom', criteria.checkInFrom);
+  if (criteria.checkInTo) params.append('checkInTo', criteria.checkInTo);
+  if (criteria.checkOutFrom) params.append('checkOutFrom', criteria.checkOutFrom);
+  if (criteria.checkOutTo) params.append('checkOutTo', criteria.checkOutTo);
+
+  params.append('page', criteria.page || 0);
+  params.append('size', criteria.size || 20);
+  if (criteria.sortBy) params.append('sortBy', criteria.sortBy);
+  if (criteria.sortDirection) params.append('sortDirection', criteria.sortDirection);
+
+  return api.get(`/partneredhotel/bookings/search?${params.toString()}`).then(res => res.data);
+};

@@ -240,9 +240,16 @@ export const Guests = () => {
                   {getInitials(guest)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-slate-900 mb-1 truncate">
-                    {getGuestName(guest)}
-                  </h3>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <h3 className="font-bold text-slate-900 truncate">
+                      {getGuestName(guest)}
+                    </h3>
+                    {guest.isGuestAccount && (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700 shrink-0">
+                        Guest
+                      </span>
+                    )}
+                  </div>
                   <span
                     className={`text-xs px-2 py-1 rounded-full font-medium ${
                       statusColors[status] || 'bg-slate-100 text-slate-600'
@@ -283,6 +290,18 @@ export const Guests = () => {
                       : 'N/A'}
                   </p>
                 </div>
+                {/* First booking timestamp */}
+                {(() => {
+                  const first = guest.bookings?.reduce((earliest, b) => {
+                    if (!b.createdAt) return earliest;
+                    return !earliest || new Date(b.createdAt) < new Date(earliest) ? b.createdAt : earliest;
+                  }, null);
+                  return first ? (
+                    <div className="col-span-2">
+                      <p className="text-xs text-slate-400">First booked: {new Date(first).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                    </div>
+                  ) : null;
+                })()}
               </div>
             </motion.div>
           );
@@ -313,9 +332,16 @@ export const Guests = () => {
                     {getInitials(selectedGuest)}
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900">
-                      {getGuestName(selectedGuest)}
-                    </h2>
+                    <div className="flex items-center gap-1.5">
+                      <h2 className="text-lg font-bold text-slate-900">
+                        {getGuestName(selectedGuest)}
+                      </h2>
+                      {selectedGuest.isGuestAccount && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700">
+                          Guest
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-slate-500">
                       Guest ID: {selectedGuest.guestId.slice(0, 8)}...
                     </p>

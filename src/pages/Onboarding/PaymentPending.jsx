@@ -40,7 +40,7 @@ export const PaymentPending = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex flex-col" style={{ fontFamily: "'Outfit', sans-serif" }}>
       {/* Top bar */}
       <div className="flex items-center gap-3 px-8 py-5 border-b border-white/10">
         <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">

@@ -4,6 +4,8 @@ import {
   loginApi,
   registerApi,
   logoutApi,
+  googleStaffLoginApi,
+  googleOwnerLoginApi,
   getProfileApi,
   updateProfileApi,
   uploadProfilePhotoApi,
@@ -64,6 +66,32 @@ export const signinOwner = createAsyncThunk(
     } catch (error) {
       console.error("[OWNER SIGNIN] Failed:", error);
       return rejectWithValue(error.message || "Invalid credentials");
+    }
+  }
+);
+
+// Google OAuth2 — hotel staff/manager
+export const googleSigninUser = createAsyncThunk(
+  "user/googleSigninUser",
+  async (idToken, { rejectWithValue }) => {
+    try {
+      const response = await googleStaffLoginApi(idToken);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || "Google sign-in failed");
+    }
+  }
+);
+
+// Google OAuth2 — hotel owner
+export const googleSigninOwner = createAsyncThunk(
+  "user/googleSigninOwner",
+  async (idToken, { rejectWithValue }) => {
+    try {
+      const response = await googleOwnerLoginApi(idToken);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || "Google sign-in failed");
     }
   }
 );
@@ -371,6 +399,50 @@ const userSlice = createSlice({
         }
       })
       .addCase(signinOwner.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // GOOGLE STAFF LOGIN
+      .addCase(googleSigninUser.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(googleSigninUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user;
+        state.userId = action.payload.user?.id;
+        state.userRole = action.payload.user?.role;
+        state.hotelId = action.payload.user?.hotelId || null;
+        state.hotelIds = action.payload.user?.hotelId ? [action.payload.user.hotelId] : [];
+        state.accessToken = action.payload.accessToken;
+        state.refreshToken = action.payload.refreshToken;
+        state.error = null;
+      })
+      .addCase(googleSigninUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // GOOGLE OWNER LOGIN
+      .addCase(googleSigninOwner.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(googleSigninOwner.fulfilled, (state, action) => {
+        state.loading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user;
+        state.userId = action.payload.user?.id;
+        state.userRole = action.payload.user?.role;
+        state.hotelId = action.payload.user?.hotelId || null;
+        state.hotelIds = action.payload.user?.hotelId ? [action.payload.user.hotelId] : [];
+        state.accessToken = action.payload.accessToken;
+        state.refreshToken = action.payload.refreshToken;
+        state.error = null;
+      })
+      .addCase(googleSigninOwner.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })

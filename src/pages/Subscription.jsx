@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { motion } from "framer-motion";
 import {
@@ -22,6 +22,7 @@ import {
   selectPlanActionLoading,
   selectPlanActionError,
 } from "../store/slices/paymentsSlice";
+import { fetchOwnerHotels } from "../store/slices/PartnerHotelslice";
 import { selectUserId } from "../store/slices/userSlice";
 import {
   PLAN_STYLE,
@@ -31,6 +32,11 @@ import {
   getBackendPriceId,
   isPaidSubscriptionPlan,
 } from "../utils/planUtils";
+import {
+  getBillingPlanCode,
+  isBillingSubscriptionActive,
+} from "../utils/subscriptionUtils";
+import { syncSubscription } from "../api/payments";
 
 /* ── helpers ── */
 const STATUS_CONFIG = {
@@ -90,10 +96,30 @@ export const Subscription = () => {
   const [selectedCode, setSelectedCode] = useState(null);
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [priceIdError, setPriceIdError] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+
+  // Force-sync subscription period dates from Stripe, then refresh the Redux store.
+  // This fixes the case where Period Start and Period End show the same date
+  // (caused by Stripe SDK v30 removing current_period_end from the Java model).
+  const handleRefresh = useCallback(async () => {
+    if (!ownerId || syncing || billingLoading) return;
+    setSyncing(true);
+    try {
+      await syncSubscription(ownerId);   // BE re-fetches from Stripe + saves correct dates
+    } catch (err) {
+      console.warn("syncSubscription failed:", err);
+    } finally {
+      setSyncing(false);
+      dispatch(fetchOwnerBilling(ownerId)); // reload from DB (now has correct dates)
+    }
+  }, [ownerId, syncing, billingLoading, dispatch]);
 
   useEffect(() => {
     if (ownerId && !billing)  dispatch(fetchOwnerBilling(ownerId));
     if (!plans.length)         dispatch(fetchSubscriptionPlans());
+    // Pre-load hotels so the Redux hotel count is accurate when checkout is initiated.
+    // startCheckout also fetches fresh from the API, but this warms the UI too.
+    dispatch(fetchOwnerHotels());
   }, [dispatch, ownerId, billing, plans.length]);
 
   const handleChangePlan = async (plan) => {
@@ -106,7 +132,7 @@ export const Subscription = () => {
     }
     const priceId = getBackendPriceId(plan) || undefined;
     try {
-      if (billing?.subscriptionActive) {
+      if (isBillingSubscriptionActive(billing)) {
         await dispatch(changePlan({ ownerId, newPlanCode: plan.code, newPriceId: priceId, currentPropertyCount })).unwrap();
         dispatch(fetchOwnerBilling(ownerId));
       } else {
@@ -130,14 +156,22 @@ export const Subscription = () => {
   };
 
   const status      = billing?.subscriptionStatus;
-  const statusConf  = status ? STATUS_CONFIG[status] : null;
+  const activeSubscription = isBillingSubscriptionActive(billing);
+  const normalizedStatus = typeof status === "string" ? status.toUpperCase() : "";
+  const statusConf  = activeSubscription
+    ? (status ? STATUS_CONFIG[status] || STATUS_CONFIG[normalizedStatus] : null)
+    : {
+        label: normalizedStatus === "CANCELLED" || normalizedStatus === "CANCELED" ? "Cancelled" : "Ended",
+        cls: "bg-slate-100 text-slate-600 border-slate-200",
+        Icon: XCircle,
+      };
 
-  const currentCode = billing?.plan?.code;
+  const currentCode = getBillingPlanCode(billing);
   const pendingCode = (status === "CHECKOUT_PENDING" && billing?.subscriptionPlan !== currentCode)
     ? billing?.subscriptionPlan
     : null;
 
-  const currentPlanMeta = plans.find((p) => p.code === currentCode);
+  const currentPlanMeta = currentCode ? plans.find((p) => p.code === currentCode) : null;
 
   const cols = plans.length <= 2 ? "sm:grid-cols-2"
              : plans.length === 3 ? "sm:grid-cols-3"
@@ -153,12 +187,12 @@ export const Subscription = () => {
           <p className="text-sm text-slate-500 mt-0.5">Manage your Desiney plan and billing details</p>
         </div>
         <button
-          onClick={() => ownerId && dispatch(fetchOwnerBilling(ownerId))}
-          disabled={billingLoading}
+          onClick={handleRefresh}
+          disabled={syncing || billingLoading}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${billingLoading ? "animate-spin" : ""}`} />
-          Refresh
+          <RefreshCw className={`w-3.5 h-3.5 ${(syncing || billingLoading) ? "animate-spin" : ""}`} />
+          {syncing ? "Syncing…" : "Refresh"}
         </button>
       </div>
 
@@ -180,20 +214,42 @@ export const Subscription = () => {
               <div>
                 <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Current Plan</p>
                 <h2 className="text-xl font-bold text-slate-800 mt-0.5">
-                  {currentPlanMeta?.name || billing.plan?.name || "—"}
+                  {activeSubscription
+                    ? (currentPlanMeta?.name || billing.plan?.name || "—")
+                    : "No active subscription"}
                 </h2>
-                {currentPlanMeta && (() => {
+                {activeSubscription && currentPlanMeta && (() => {
                   const price = getPriceDisplay(currentPlanMeta);
                   return (
-                    <p className="text-slate-500 text-sm mt-0.5">
-                      {price.amount === "Free"
-                        ? <span className="text-orange-500 flex items-center gap-1">
-                            <Percent className="w-3.5 h-3.5" /> {price.sub || "Free plan"}
-                          </span>
-                        : `${price.amount}${price.unit}`}
-                    </p>
+                    <>
+                      <p className="text-slate-500 text-sm mt-0.5">
+                        {price.amount === "Free"
+                          ? <span className="text-orange-500 flex items-center gap-1">
+                              <Percent className="w-3.5 h-3.5" /> {price.sub || "Free plan"}
+                            </span>
+                          : `${price.amount} ${price.unit}`}
+                      </p>
+                      {/* FRANCHISE: show base + per-property breakdown inline */}
+                      {price.breakdown ? (
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                          {price.breakdown.map(({ label, value }) => (
+                            <span key={label} className="text-xs text-slate-500">
+                              <span className="text-slate-400">{label}: </span>
+                              <span className="font-semibold text-violet-600">{value}</span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : price.sub && price.amount !== "Free" ? (
+                        <p className="text-xs text-violet-600 font-medium mt-0.5">{price.sub}</p>
+                      ) : null}
+                    </>
                   );
                 })()}
+                {!activeSubscription && billing?.plan?.name && (
+                  <p className="text-slate-500 text-sm mt-0.5">
+                    Last plan: {billing.plan.name}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -207,7 +263,7 @@ export const Subscription = () => {
           </div>
 
           {/* Plan capability strip */}
-          {currentPlanMeta && (
+          {activeSubscription && currentPlanMeta && (
             <div className="mt-5 pt-4 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
                 <p className="text-xs text-slate-400">Properties</p>
@@ -263,7 +319,7 @@ export const Subscription = () => {
           </div>
 
           {/* Cancel subscription */}
-          {billing.subscriptionActive && !billing.subscriptionCancelAtPeriodEnd && (
+          {activeSubscription && !billing.subscriptionCancelAtPeriodEnd && (
             <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
               {cancelConfirm ? (
                 <div className="flex items-center gap-3 text-sm text-slate-600">
@@ -295,7 +351,7 @@ export const Subscription = () => {
           )}
 
           {/* Feature pills */}
-          {currentPlanMeta && getEnabledFeatures(currentPlanMeta).length > 0 && (
+          {activeSubscription && currentPlanMeta && getEnabledFeatures(currentPlanMeta).length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
               {getEnabledFeatures(currentPlanMeta).map(({ key, label, Icon }) => (
                 <span key={key} className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs rounded-full border border-indigo-100">
@@ -338,6 +394,7 @@ export const Subscription = () => {
                 const enabled     = getEnabledFeatures(plan);
                 const disabled    = getDisabledFeatures(plan);
                 const isFree      = plan.code === "FREE";
+                const showAsCurrent = activeSubscription && isCurrent;
 
                 return (
                   <motion.div
@@ -346,7 +403,7 @@ export const Subscription = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.07 }}
                     className={`relative rounded-2xl border flex flex-col transition-all
-                      ${isCurrent
+                      ${showAsCurrent
                         ? "border-indigo-400 bg-indigo-50 shadow-md shadow-indigo-100"
                         : isPending
                           ? "border-yellow-400 bg-yellow-50/40 shadow-md shadow-yellow-100"
@@ -355,7 +412,7 @@ export const Subscription = () => {
                             : "border-slate-200 bg-white"}`}
                   >
                     {/* Badges */}
-                    {isCurrent && (
+                    {showAsCurrent && (
                       <span className="absolute -top-3 left-4 px-3 py-0.5 bg-indigo-600 text-white text-[10px] font-bold rounded-full shadow">
                         Current Plan
                       </span>
@@ -373,7 +430,7 @@ export const Subscription = () => {
                     )}
 
                     {/* Header */}
-                    <div className={`px-5 pt-7 pb-4 border-b ${isCurrent ? "border-indigo-200" : "border-slate-100"}`}>
+                    <div className={`px-5 pt-7 pb-4 border-b ${showAsCurrent ? "border-indigo-200" : "border-slate-100"}`}>
                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
                         {plan.partnerType}
                       </p>
@@ -436,9 +493,9 @@ export const Subscription = () => {
                           {enabled.map(({ key, label, Icon }) => (
                             <li key={key} className="flex items-center gap-2 text-sm text-slate-600">
                               <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0
-                                ${isCurrent ? "bg-indigo-100" : "bg-slate-100"}`}>
+                                ${showAsCurrent ? "bg-indigo-100" : "bg-slate-100"}`}>
                                 {Icon
-                                  ? <Icon className={`w-2.5 h-2.5 ${isCurrent ? "text-indigo-600" : "text-slate-400"}`} />
+                                  ? <Icon className={`w-2.5 h-2.5 ${showAsCurrent ? "text-indigo-600" : "text-slate-400"}`} />
                                   : <CheckCircle2 className="w-2.5 h-2.5 text-slate-400" />}
                               </div>
                               {label}
@@ -468,7 +525,7 @@ export const Subscription = () => {
 
                     {/* CTA */}
                     <div className="px-5 pb-5">
-                      {isCurrent ? (
+                      {showAsCurrent ? (
                         <div className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-indigo-100 text-indigo-700 text-sm font-semibold cursor-default border border-indigo-200">
                           <CheckCircle className="w-4 h-4" />
                           Your current plan
@@ -485,7 +542,7 @@ export const Subscription = () => {
                             <><Clock className="w-4 h-4" /> Complete Payment</>
                           )}
                         </button>
-                      ) : isFree && billing?.subscriptionActive ? (
+                      ) : isFree && activeSubscription ? (
                         <div className="w-full py-2.5 px-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 text-center leading-snug">
                           Cancel your subscription to return to the free plan
                         </div>
@@ -499,7 +556,7 @@ export const Subscription = () => {
                               : "bg-slate-800 hover:bg-slate-900 text-white"}`}
                         >
                           {isLoading ? (
-                            billing?.subscriptionActive
+                            activeSubscription
                               ? <><Loader2 className="w-4 h-4 animate-spin" /> Updating…</>
                               : <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting…</>
                           ) : (

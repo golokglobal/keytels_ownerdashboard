@@ -13,6 +13,7 @@ import {
 import { fetchPropertyTypes, fetchRoomTypes, fetchBedTypes, selectPropertyTypes, selectRoomTypes, selectBedTypes } from "../store/slices/catalogSlice";
 import { fetchOwnerBilling, selectBilling } from "../store/slices/paymentsSlice";
 import { selectUserId, selectIsHotelOwner } from "../store/slices/userSlice";
+import { isBillingSubscriptionActive } from "../utils/subscriptionUtils";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { LocationPicker } from "../components/common/LocationPicker";
@@ -210,7 +211,7 @@ export const AddHotel = () => {
   const hasPerPropertyBilling = !!(
     billing &&
     PER_PROPERTY_PLANS.includes(billing.subscriptionPlan) &&
-    (billing.subscriptionStatus === "ACTIVE" || billing.subscriptionStatus === "TRIALING" || billing.subscriptionStatus === "active")
+    isBillingSubscriptionActive(billing)
   );
   /* ─────────────────────── STATE ─────────────────────── */
   const [formData, setFormData] = useState({

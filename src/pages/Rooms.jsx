@@ -1,5 +1,5 @@
 import { useDispatch, useSelector } from "react-redux";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -16,8 +16,9 @@ import { fetchRoomTypes, fetchBedTypes, selectRoomTypes, selectBedTypes } from "
 import {
   BedDouble, Edit, Trash2, X, Building2, Users,
   CheckCircle, XCircle, Plus, Image as ImageIcon, Wrench,
-  ChevronLeft, ChevronRight, DollarSign, Hash, RefreshCw,
+  ChevronLeft, ChevronRight, DollarSign, Hash, RefreshCw, CalendarDays,
 } from "lucide-react";
+import RoomInventoryCalendar from "../components/inventory/RoomInventoryCalendar";
 import { toast } from "react-hot-toast";
 import { ConfirmModal } from "../components/common/ConfirmModal";
 import { selectPrimaryHotelId } from "../store/slices/userSlice";
@@ -112,6 +113,8 @@ const RoomPanel = ({ hotel }) => {
   const [showImages, setShowImages] = useState(false);
   const [imageRoom, setImageRoom] = useState(null);
   const [confirmDelImg, setConfirmDelImg] = useState({ open: false, imageId: null });
+  /* inventory calendar */
+  const [inventoryRoom, setInventoryRoom] = useState(null); // room object whose calendar is open
 
   const EMPTY = { roomType: "", bedType: "", description: "", capacity: "", pricePerNight: "", totalRooms: "1", isAvailable: true, cancellationPolicy: "" };
   const [roomForm, setRoomForm] = useState(EMPTY);
@@ -351,17 +354,37 @@ const RoomPanel = ({ hotel }) => {
                       </div>
                     </div>
 
+                    {/* Timestamps */}
+                    {room.createdAt && (
+                      <p className="text-xs text-slate-400">
+                        Added {new Date(room.createdAt).toLocaleDateString()}
+                        {room.updatedAt && room.updatedAt !== room.createdAt && (
+                          <span className="ml-2 text-slate-300">· Updated {new Date(room.updatedAt).toLocaleDateString()}</span>
+                        )}
+                      </p>
+                    )}
+
                     <div className="flex-1" />
 
                     {/* Actions */}
                     <div className="flex gap-2 pt-3 border-t border-slate-100">
                       <button onClick={() => handleOpenImages(room)}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-100 transition-colors">
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-100 transition-colors">
                         <ImageIcon className="w-3.5 h-3.5" />
                         Images {imgs.length > 0 && `(${imgs.length})`}
                       </button>
+                      <button
+                        onClick={() => setInventoryRoom(inventoryRoom?.roomId === rid ? null : room)}
+                        className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors border ${
+                          inventoryRoom?.roomId === rid
+                            ? "bg-indigo-700 text-white border-indigo-700"
+                            : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
+                        }`}
+                      >
+                        <CalendarDays className="w-3.5 h-3.5" /> Inventory
+                      </button>
                       <button onClick={() => { setEditRoom({ ...room }); setShowEdit(true); }}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-700 transition-colors">
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-700 transition-colors">
                         <Edit className="w-3.5 h-3.5" /> Edit
                       </button>
                       <button onClick={() => { setDeleteRoom(room); setShowDel(true); }}
@@ -376,6 +399,25 @@ const RoomPanel = ({ hotel }) => {
           </div>
         )}
       </div>
+
+      {/* ── Inventory Calendar (inline, below grid) ── */}
+      <AnimatePresence>
+        {inventoryRoom && (
+          <motion.div
+            key="inventory-calendar"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="px-6 pb-6"
+          >
+            <RoomInventoryCalendar
+              room={inventoryRoom}
+              onClose={() => setInventoryRoom(null)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Add Room Modal ── */}
       <AnimatePresence>

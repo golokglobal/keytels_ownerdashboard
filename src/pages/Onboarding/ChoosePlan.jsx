@@ -95,12 +95,23 @@ const PlanCard = ({ plan, onSubscribe, checkoutLoading, selectedCode, isLoggedIn
             <span className="text-slate-400 text-xs mb-1 leading-tight">{price.unit}</span>
           )}
         </div>
-        {price.sub && (
-          <p className={`text-xs mt-1.5 ${isFree ? "text-orange-400 font-medium" : "text-slate-500"}`}>
+
+        {/* FRANCHISE: explicit breakdown table */}
+        {price.breakdown ? (
+          <div className="mt-3 rounded-lg border border-white/10 bg-white/5 divide-y divide-white/10 overflow-hidden">
+            {price.breakdown.map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between px-3 py-1.5">
+                <span className="text-xs text-slate-400">{label}</span>
+                <span className="text-xs font-semibold text-white">{value}</span>
+              </div>
+            ))}
+          </div>
+        ) : price.sub ? (
+          <p className={`text-xs mt-1.5 ${isFree ? "text-orange-400 font-medium" : "text-slate-400"}`}>
             {isFree && <Percent className="w-3 h-3 inline mr-1" />}
             {price.sub}
           </p>
-        )}
+        ) : null}
 
         {/* Property limit */}
         <p className="text-xs text-slate-500 mt-2">
@@ -257,7 +268,7 @@ export const ChoosePlan = () => {
              : "sm:grid-cols-2 lg:grid-cols-4";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex flex-col" style={{ fontFamily: "'Outfit', sans-serif" }}>
       {/* Top bar */}
       <div className="flex items-center gap-3 px-8 py-5 border-b border-white/10">
         <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">

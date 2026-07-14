@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Check, MapPin, Search, X } from 'lucide-react';
+import { ChevronDown, Check, MapPin, Search, X, Clock, AlertTriangle, PauseCircle, XCircle } from 'lucide-react';
 
 export const HOTEL_COLORS = [
   { bg: 'bg-violet-500', light: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-300', dot: 'bg-violet-500', ring: 'ring-violet-200' },
@@ -15,10 +15,97 @@ export const HOTEL_COLORS = [
   { bg: 'bg-indigo-500', light: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-300', dot: 'bg-indigo-500', ring: 'ring-indigo-200' },
 ];
 
-export const getHotelColor = (idx) => HOTEL_COLORS[idx % HOTEL_COLORS.length];
-export const getHotelId   = (h) => h?.partneredHotelId || h?.id || h?._id || null;
-export const getHotelName = (h) => h?.name || h?.hotelName || 'Unnamed Hotel';
-export const getHotelLoc  = (h) => h?.location || h?.address?.city || h?.city || null;
+export const getHotelColor  = (idx) => HOTEL_COLORS[idx % HOTEL_COLORS.length];
+export const getHotelId     = (h) => h?.partneredHotelId || h?.id || h?._id || null;
+export const getHotelName   = (h) => h?.name || h?.hotelName || 'Unnamed Hotel';
+export const getHotelLoc    = (h) => h?.location || h?.address?.city || h?.city || null;
+export const getHotelStatus = (h) => String(h?.status ?? 'ACTIVE').toUpperCase();
+
+/** Returns true if the hotel is accepting bookings and fully operational. */
+export const isHotelActive  = (h) => getHotelStatus(h) === 'ACTIVE';
+
+const STATUS_CONFIG = {
+  ACTIVE:         null, // no badge — normal operating state
+  PENDING_REVIEW: {
+    label: 'Pending Review',
+    short: 'Pending',
+    icon: Clock,
+    pill: 'bg-amber-100 text-amber-700 border border-amber-300',
+    banner: 'bg-amber-50 border-amber-200 text-amber-800',
+    bannerIcon: Clock,
+    message: 'This property is under review by our team. Bookings and revenue features are unavailable until it is approved.',
+  },
+  PENDING: {
+    label: 'Pending Review',
+    short: 'Pending',
+    icon: Clock,
+    pill: 'bg-amber-100 text-amber-700 border border-amber-300',
+    banner: 'bg-amber-50 border-amber-200 text-amber-800',
+    bannerIcon: Clock,
+    message: 'This property is under review by our team. Bookings and revenue features are unavailable until it is approved.',
+  },
+  REJECTED: {
+    label: 'Rejected',
+    short: 'Rejected',
+    icon: XCircle,
+    pill: 'bg-red-100 text-red-700 border border-red-300',
+    banner: 'bg-red-50 border-red-200 text-red-800',
+    bannerIcon: XCircle,
+    message: 'This property was rejected by our team. Please update the property details and contact support to resubmit.',
+  },
+  SUSPENDED: {
+    label: 'Suspended',
+    short: 'Suspended',
+    icon: PauseCircle,
+    pill: 'bg-orange-100 text-orange-700 border border-orange-300',
+    banner: 'bg-orange-50 border-orange-200 text-orange-800',
+    bannerIcon: AlertTriangle,
+    message: 'This property has been suspended. Billing is paused. Contact support to resolve the issue and reactivate.',
+  },
+  INACTIVE: {
+    label: 'Inactive',
+    short: 'Inactive',
+    icon: PauseCircle,
+    pill: 'bg-slate-100 text-slate-500 border border-slate-300',
+    banner: 'bg-slate-50 border-slate-200 text-slate-700',
+    bannerIcon: PauseCircle,
+    message: 'This property is currently inactive and not visible to guests.',
+  },
+};
+
+/**
+ * Small status pill badge — shown inline next to hotel names in the list.
+ * Returns null for ACTIVE hotels (no badge needed).
+ */
+const StatusPill = ({ status }) => {
+  const cfg = STATUS_CONFIG[status];
+  if (!cfg) return null;
+  const Icon = cfg.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${cfg.pill}`}>
+      <Icon className="w-2.5 h-2.5 shrink-0" />
+      {cfg.short}
+    </span>
+  );
+};
+
+/**
+ * Banner shown below the hotel selector when the selected hotel is not ACTIVE.
+ * Informs the owner what "not active" means and what they should do.
+ */
+export const HotelStatusBanner = ({ hotel }) => {
+  if (!hotel) return null;
+  const status = getHotelStatus(hotel);
+  const cfg = STATUS_CONFIG[status];
+  if (!cfg) return null; // ACTIVE — no banner
+  const Icon = cfg.bannerIcon;
+  return (
+    <div className={`flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border text-sm font-medium ${cfg.banner} mt-2`}>
+      <Icon className="w-4 h-4 shrink-0 mt-0.5" />
+      <p className="m-0 leading-snug">{cfg.message}</p>
+    </div>
+  );
+};
 
 /**
  * Colorful searchable hotel dropdown.
@@ -42,9 +129,11 @@ export const HotelDropdown = ({
   const ref = useRef(null);
   const inputRef = useRef(null);
 
-  const activeIdx = hotels.findIndex((h) => getHotelId(h) === activeId);
+  const activeIdx   = hotels.findIndex((h) => getHotelId(h) === activeId);
   const activeHotel = activeIdx >= 0 ? hotels[activeIdx] : null;
   const activeColor = getHotelColor(activeIdx >= 0 ? activeIdx : 0);
+  const activeStatus = activeHotel ? getHotelStatus(activeHotel) : 'ACTIVE';
+  const activeStatusCfg = STATUS_CONFIG[activeStatus];
 
   const filtered = hotels.filter((h) => {
     const q = query.toLowerCase();
@@ -87,11 +176,16 @@ export const HotelDropdown = ({
 
         {/* Name + location */}
         <div className="flex-1 min-w-0 text-left">
-          <p className={`font-semibold truncate text-slate-900 ${isSm ? 'text-sm' : 'text-sm'}`}>
-            {activeHotel ? getHotelName(activeHotel) : 'Select hotel…'}
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className={`font-semibold truncate text-slate-900 ${isSm ? 'text-sm' : 'text-sm'} m-0`}>
+              {activeHotel ? getHotelName(activeHotel) : 'Select hotel…'}
+            </p>
+            {activeHotel && activeStatusCfg && (
+              <StatusPill status={activeStatus} />
+            )}
+          </div>
           {activeHotel && getHotelLoc(activeHotel) && (
-            <p className="text-xs text-slate-400 flex items-center gap-1 truncate mt-0.5">
+            <p className="text-xs text-slate-400 flex items-center gap-1 truncate mt-0.5 m-0">
               <MapPin className="w-3 h-3 shrink-0" />
               {getHotelLoc(activeHotel)}
             </p>
@@ -100,6 +194,11 @@ export const HotelDropdown = ({
 
         <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
+
+      {/* Status banner for non-active selected hotel */}
+      {activeHotel && activeStatusCfg && !open && (
+        <HotelStatusBanner hotel={activeHotel} />
+      )}
 
       {/* Dropdown */}
       <AnimatePresence>
@@ -130,31 +229,36 @@ export const HotelDropdown = ({
             </div>
 
             {/* Hotel list */}
-            <ul className="max-h-60 overflow-y-auto py-1">
+            <ul className="max-h-64 overflow-y-auto py-1">
               {filtered.length === 0 ? (
                 <li className="px-4 py-6 text-center text-sm text-slate-400">No hotels found</li>
               ) : (
                 filtered.map((h) => {
-                  const hid = getHotelId(h);
-                  const idx = hotels.findIndex((x) => getHotelId(x) === hid);
-                  const color = getHotelColor(idx);
+                  const hid      = getHotelId(h);
+                  const idx      = hotels.findIndex((x) => getHotelId(x) === hid);
+                  const color    = getHotelColor(idx);
                   const isSelected = hid === activeId;
-                  const loc = getHotelLoc(h);
+                  const loc      = getHotelLoc(h);
+                  const hStatus  = getHotelStatus(h);
+                  const isActive = hStatus === 'ACTIVE';
                   return (
                     <li key={hid}>
                       <button
                         type="button"
                         onClick={() => { onChange(hid); setOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors
                           ${isSelected ? color.light : 'hover:bg-slate-50'}`}
                       >
-                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${color.dot}`} />
+                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isActive ? color.dot : 'bg-slate-300'}`} />
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-semibold truncate ${isSelected ? color.text : 'text-slate-800'}`}>
-                            {getHotelName(h)}
-                          </p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className={`text-sm font-semibold truncate m-0 ${isSelected ? color.text : isActive ? 'text-slate-800' : 'text-slate-500'}`}>
+                              {getHotelName(h)}
+                            </p>
+                            <StatusPill status={hStatus} />
+                          </div>
                           {loc && (
-                            <p className="text-xs text-slate-400 flex items-center gap-1 truncate mt-0.5">
+                            <p className="text-xs text-slate-400 flex items-center gap-1 truncate mt-0.5 m-0">
                               <MapPin className="w-3 h-3 shrink-0" />
                               {loc}
                             </p>

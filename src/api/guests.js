@@ -25,6 +25,7 @@ export const fetchGuests = async (hotelId) => {
       if (guest?.lastName) existing.lastName = guest.lastName;
       if (guest?.email) existing.email = guest.email;
       if (guest?.phoneNumber) existing.phoneNumber = guest.phoneNumber;
+      if (existing.isGuestAccount === undefined) existing.isGuestAccount = guest?.isGuestAccount;
 
       // Track latest check-in date
       if (booking.checkInDate > existing.lastCheckIn) {
@@ -37,6 +38,7 @@ export const fetchGuests = async (hotelId) => {
         lastName: guest?.lastName || null,
         email: guest?.email || null,
         phoneNumber: guest?.phoneNumber || null,
+        isGuestAccount: guest?.isGuestAccount,
         totalBookings: 1,
         lastCheckIn: booking.checkInDate || null,
         bookings: [booking],

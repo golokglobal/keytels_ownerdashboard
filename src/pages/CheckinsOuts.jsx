@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { LogIn, LogOut, RefreshCw, Calendar } from 'lucide-react';
+import { LogIn, LogOut, RefreshCw, Calendar, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { HotelSelector } from '../components/shared/HotelSelector';
 import { DataTable } from '../components/shared/DataTable';
 import { selectPrimaryHotelId } from '../store/slices/userSlice';
@@ -11,6 +11,7 @@ import {
   selectTodayCheckOuts,
   selectBookingsLoading,
 } from '../store/slices/bookingSlice';
+import { checkInBooking } from '../api/bookings';
 
 const getGuestName = (booking) => {
   if (booking?.guest) {
@@ -22,59 +23,208 @@ const getGuestName = (booking) => {
   return booking?.guestName || 'Guest';
 };
 
-const bookingIdShort = (id) => (id ? `${id.substring(0, 8)}...` : '—');
+const bookingIdShort = (id) => (id ? `${id.substring(0, 8)}…` : '—');
 
+// ─── Confirm Check-In Button ──────────────────────────────────────────────────
+function ConfirmCheckInBtn({ booking, onDone }) {
+  const bookingId = booking?.bookingId;
+  const alreadyCheckedIn =
+    booking?.bookingStatus?.toUpperCase() === 'CHECKED_IN' ||
+    booking?.bookingStatus?.toUpperCase() === 'COMPLETED';
+
+  const [status, setStatus] = useState(alreadyCheckedIn ? 'done' : 'idle');
+  const [errMsg, setErrMsg] = useState('');
+
+  const handleConfirm = useCallback(async () => {
+    if (!bookingId || status === 'loading' || status === 'done') return;
+    setStatus('loading');
+    setErrMsg('');
+    try {
+      // Check-in the booking. The backend automatically releases the Stripe
+      // transfer to the owner's connected account as part of this call.
+      await checkInBooking(bookingId);
+      setStatus('done');
+      onDone?.();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Check-in failed';
+      setErrMsg(msg);
+      setStatus('error');
+    }
+  }, [bookingId, status, onDone]);
+
+  if (status === 'done') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+        <CheckCircle2 className="w-3.5 h-3.5" />
+        Checked In
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        onClick={handleConfirm}
+        disabled={status === 'loading'}
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
+          ${status === 'loading'
+            ? 'bg-amber-50 text-amber-400 border border-amber-200 cursor-not-allowed'
+            : status === 'error'
+            ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+            : 'bg-amber-500 text-white border border-amber-500 hover:bg-amber-600 shadow-sm hover:shadow-md active:scale-95'
+          }`}
+      >
+        {status === 'loading' ? (
+          <><Loader2 className="w-3.5 h-3.5 animate-spin" />Confirming…</>
+        ) : status === 'error' ? (
+          <><AlertCircle className="w-3.5 h-3.5" />Retry</>
+        ) : (
+          <><LogIn className="w-3.5 h-3.5" />Confirm Check-In</>
+        )}
+      </button>
+      {status === 'error' && errMsg && (
+        <p className="text-xs text-red-500 max-w-[160px] leading-tight">{errMsg}</p>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export const CheckinsOuts = () => {
   const dispatch = useDispatch();
-  const activeHotelId = useSelector(selectPrimaryHotelId);
-  const todayCheckIns = useSelector(selectTodayCheckIns) || [];
+  const activeHotelId  = useSelector(selectPrimaryHotelId);
+  const todayCheckIns  = useSelector(selectTodayCheckIns)  || [];
   const todayCheckOuts = useSelector(selectTodayCheckOuts) || [];
   const loading = useSelector(selectBookingsLoading);
   const [activeTab, setActiveTab] = useState('checkins');
 
-  const load = () => {
+  const load = useCallback(() => {
     if (!activeHotelId) return;
     dispatch(fetchTodayCheckIns(activeHotelId));
     dispatch(fetchTodayCheckOuts(activeHotelId));
-  };
+  }, [activeHotelId, dispatch]);
 
   useEffect(() => {
     if (activeHotelId) load();
-  }, [activeHotelId]);
+  }, [activeHotelId, load]);
 
-  const columns = useMemo(() => [
+  // ─── Check-in columns (with Confirm button) ─────────────────────────────
+  const checkInColumns = useMemo(() => [
     {
       header: 'Booking ID',
       render: (row) => (
-        <span className="font-mono text-xs text-slate-600">
-          {bookingIdShort(row.bookingId)}
-        </span>
+        <span className="font-mono text-xs text-slate-500">{bookingIdShort(row.bookingId)}</span>
       ),
     },
     {
       header: 'Guest',
       render: (row) => (
         <div>
-          <p className="font-medium text-slate-900">{getGuestName(row)}</p>
-          {row.guest?.email && <p className="text-xs text-slate-500">{row.guest.email}</p>}
+          <p className="font-semibold text-slate-900 text-sm">{getGuestName(row)}</p>
+          {row.guest?.email && <p className="text-xs text-slate-400">{row.guest.email}</p>}
         </div>
       ),
     },
     {
       header: 'Room',
-      render: (row) => row.roomId || row.roomNumber || '—',
+      render: (row) => (
+        <span className="text-sm text-slate-700">{row.roomId || row.roomNumber || '—'}</span>
+      ),
     },
     {
       header: 'Check-in',
-      render: (row) => (row.checkInDate ? new Date(row.checkInDate).toLocaleDateString() : '—'),
+      render: (row) => (
+        <span className="text-sm text-slate-700">
+          {row.checkInDate ? new Date(row.checkInDate).toLocaleDateString() : '—'}
+        </span>
+      ),
     },
     {
       header: 'Check-out',
-      render: (row) => (row.checkOutDate ? new Date(row.checkOutDate).toLocaleDateString() : '—'),
+      render: (row) => (
+        <span className="text-sm text-slate-700">
+          {row.checkOutDate ? new Date(row.checkOutDate).toLocaleDateString() : '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Amount',
+      render: (row) => (
+        <span className="text-sm font-semibold text-amber-700">
+          {row.totalAmount
+            ? new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: row.currency || 'USD',
+              }).format(row.totalAmount)
+            : '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Action',
+      render: (row) => <ConfirmCheckInBtn booking={row} onDone={load} />,
+    },
+  ], [load]);
+
+  // ─── Check-out columns (read-only) ──────────────────────────────────────
+  const checkOutColumns = useMemo(() => [
+    {
+      header: 'Booking ID',
+      render: (row) => (
+        <span className="font-mono text-xs text-slate-500">{bookingIdShort(row.bookingId)}</span>
+      ),
+    },
+    {
+      header: 'Guest',
+      render: (row) => (
+        <div>
+          <p className="font-semibold text-slate-900 text-sm">{getGuestName(row)}</p>
+          {row.guest?.email && <p className="text-xs text-slate-400">{row.guest.email}</p>}
+        </div>
+      ),
+    },
+    {
+      header: 'Room',
+      render: (row) => (
+        <span className="text-sm text-slate-700">{row.roomId || row.roomNumber || '—'}</span>
+      ),
+    },
+    {
+      header: 'Check-in',
+      render: (row) => (
+        <span className="text-sm text-slate-700">
+          {row.checkInDate ? new Date(row.checkInDate).toLocaleDateString() : '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Check-out',
+      render: (row) => (
+        <span className="text-sm text-slate-700">
+          {row.checkOutDate ? new Date(row.checkOutDate).toLocaleDateString() : '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Status',
+      render: (row) => (
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
+          ${row.bookingStatus?.toUpperCase() === 'CHECKED_OUT' || row.bookingStatus?.toUpperCase() === 'COMPLETED'
+            ? 'bg-slate-100 text-slate-600'
+            : 'bg-purple-50 text-purple-700'
+          }`}>
+          {row.bookingStatus || 'CHECKED_OUT'}
+        </span>
+      ),
     },
   ], []);
 
-  const data = activeTab === 'checkins' ? todayCheckIns : todayCheckOuts;
+  const columns = activeTab === 'checkins' ? checkInColumns : checkOutColumns;
+  const data    = activeTab === 'checkins' ? todayCheckIns  : todayCheckOuts;
 
   return (
     <div className="space-y-6">
@@ -82,7 +232,9 @@ export const CheckinsOuts = () => {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Today's Arrivals & Departures</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Monitor check-ins and check-outs for the selected property</p>
+          <p className="text-slate-500 text-sm mt-0.5">
+            Confirm check-ins to mark guest as arrived and release payment to your account
+          </p>
           <div className="mt-2">
             <HotelSelector />
           </div>
@@ -96,6 +248,18 @@ export const CheckinsOuts = () => {
           Refresh
         </button>
       </div>
+
+      {/* Info banner — only on check-ins tab when hotel selected */}
+      {activeHotelId && activeTab === 'checkins' && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <CheckCircle2 className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-800">
+            Click <strong>Confirm Check-In</strong> when the guest arrives. This marks the booking
+            as checked-in <em>and</em> releases their payment from Desiney to your Stripe account
+            — funds arrive in 30 min – 2 hours.
+          </p>
+        </div>
+      )}
 
       {!activeHotelId && (
         <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
@@ -113,7 +277,7 @@ export const CheckinsOuts = () => {
               onClick={() => setActiveTab('checkins')}
               className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
                 activeTab === 'checkins'
-                  ? 'bg-blue-600 text-white shadow-md'
+                  ? 'bg-amber-500 text-white shadow-md'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -156,4 +320,3 @@ export const CheckinsOuts = () => {
     </div>
   );
 };
-

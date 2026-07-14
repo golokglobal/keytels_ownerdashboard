@@ -13,7 +13,9 @@ import {
   syncCheckout as syncCheckoutApi,
   addPropertyToSubscription as addPropertyApi,
   removePropertyFromSubscription as removePropertyApi,
+  withdrawOwnerBalance as withdrawOwnerBalanceApi,
 } from '../../api/payments';
+import { getOwnerHotels } from '../../api/partneredHotelsApi';
 
 export const fetchOwnerBilling = createAsyncThunk(
   'payments/fetchOwnerBilling',
@@ -52,7 +54,16 @@ export const startCheckout = createAsyncThunk(
   'payments/startCheckout',
   async ({ ownerId, planCode, priceId, couponCode, currentPropertyCount }, { rejectWithValue }) => {
     try {
-      return await createSubscriptionCheckout({ ownerId, planCode, priceId, couponCode, currentPropertyCount });
+      // Always fetch a fresh hotel count so FRANCHISE checkout includes the
+      // correct per-property quantity even if hotels weren't loaded in Redux.
+      let propertyCount = currentPropertyCount ?? 0;
+      try {
+        const hotels = await getOwnerHotels(0, 200);
+        if (Array.isArray(hotels)) propertyCount = hotels.length;
+      } catch {
+        // fall back to Redux count passed in
+      }
+      return await createSubscriptionCheckout({ ownerId, planCode, priceId, couponCode, currentPropertyCount: propertyCount });
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to create checkout session');
     }
@@ -63,7 +74,15 @@ export const changePlan = createAsyncThunk(
   'payments/changePlan',
   async ({ ownerId, newPlanCode, newPriceId, currentPropertyCount }, { rejectWithValue }) => {
     try {
-      return await changeSubscriptionPlan({ ownerId, newPlanCode, newPriceId, currentPropertyCount });
+      // Same as startCheckout: refresh hotel count from the backend.
+      let propertyCount = currentPropertyCount ?? 0;
+      try {
+        const hotels = await getOwnerHotels(0, 200);
+        if (Array.isArray(hotels)) propertyCount = hotels.length;
+      } catch {
+        // fall back to Redux count
+      }
+      return await changeSubscriptionPlan({ ownerId, newPlanCode, newPriceId, currentPropertyCount: propertyCount });
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to change plan');
     }
@@ -88,6 +107,17 @@ export const removeProperty = createAsyncThunk(
       return await removePropertyApi(ownerId);
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to remove property from subscription');
+    }
+  }
+);
+
+export const withdrawBalance = createAsyncThunk(
+  'payments/withdrawBalance',
+  async (ownerId, { rejectWithValue }) => {
+    try {
+      return await withdrawOwnerBalanceApi(ownerId);
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || error.response?.data?.error || 'Withdrawal failed');
     }
   }
 );
@@ -192,6 +222,9 @@ const paymentsSlice = createSlice({
     // property seat management
     propertyActionLoading: false,
     propertyActionError: null,
+    // balance withdrawal
+    withdrawLoading: false,
+    withdrawError: null,
   },
   reducers: {
     clearPaymentsError(state) {
@@ -372,6 +405,20 @@ const paymentsSlice = createSlice({
       .addCase(processRefund.rejected, (state, action) => {
         state.refundLoading = false;
         state.refundError = action.payload;
+      })
+
+      // ── withdrawBalance ──
+      .addCase(withdrawBalance.pending, (state) => {
+        state.withdrawLoading = true;
+        state.withdrawError = null;
+      })
+      .addCase(withdrawBalance.fulfilled, (state) => {
+        state.withdrawLoading = false;
+        // Balance will refresh when billing is re-fetched
+      })
+      .addCase(withdrawBalance.rejected, (state, action) => {
+        state.withdrawLoading = false;
+        state.withdrawError = action.payload;
       });
   },
 });
@@ -387,6 +434,8 @@ export const selectCheckoutError        = (state) => state.payments.checkoutErro
 export const selectPlans                = (state) => state.payments.plans;
 export const selectPlansLoading         = (state) => state.payments.plansLoading;
 export const selectPlansError           = (state) => state.payments.plansError;
+export const selectWithdrawLoading      = (state) => state.payments.withdrawLoading;
+export const selectWithdrawError        = (state) => state.payments.withdrawError;
 export const selectCommissionLoading    = (state) => state.payments.commissionLoading;
 export const selectCommissionError      = (state) => state.payments.commissionError;
 export const selectOwnerDashboard       = (state) => state.payments.ownerDashboard;

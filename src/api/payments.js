@@ -143,6 +143,14 @@ export const syncCheckout = async (ownerId, sessionId) => {
   return response.data;
 };
 
+// POST /owner-billing/{ownerId}/sync-subscription
+// Force-syncs subscription period dates directly from Stripe.
+// Fixes stale period start/end (e.g. both showing the same date due to SDK v30 field removal).
+export const syncSubscription = async (ownerId) => {
+  const response = await api.post(`/owner-billing/${ownerId}/sync-subscription`);
+  return response.data;
+};
+
 // ─── Property Subscription Adjustments ───────────────────────────────────────
 
 // POST /owner-billing/{ownerId}/add-property
@@ -158,6 +166,24 @@ export const addPropertyToSubscription = async (ownerId) => {
 // Response: OwnerBillingStatusDto
 export const removePropertyFromSubscription = async (ownerId) => {
   const response = await api.post(`/owner-billing/${ownerId}/remove-property`);
+  return response.data;
+};
+
+// ─── Stripe Connect Onboarding Link ──────────────────────────────────────────
+
+// GET /owner-billing/{ownerId}/onboarding-link
+// Returns { url: "https://connect.stripe.com/..." }
+// Used when the owner already has a stripeAccountId but hasn't finished onboarding.
+export const getStripeOnboardingLink = async (ownerId) => {
+  const response = await api.get(`/owner-billing/${ownerId}/onboarding-link`);
+  return response.data; // { url }
+};
+
+// POST /owner-billing/{ownerId}/withdraw
+// Triggers an immediate Stripe Payout of the owner's full availableBalanceUsd.
+// Available for ALL plan types (FREE and subscribed).
+export const withdrawOwnerBalance = async (ownerId) => {
+  const response = await api.post(`/owner-billing/${ownerId}/withdraw`);
   return response.data;
 };
 

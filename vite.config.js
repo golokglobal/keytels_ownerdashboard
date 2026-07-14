@@ -130,6 +130,38 @@ export default defineConfig({
         configure: stripWWWAuthenticate,
       },
 
+      '/api/cancellation-policies': {
+        target: 'http://localhost:8084',  // duffel-service — standalone policy CRUD by policyId
+        // target: BACKEND, // SERVER
+        changeOrigin: true,
+        secure: false,
+        configure: stripWWWAuthenticate,
+      },
+
+      '/api/rooms': {
+        target: 'http://localhost:8084',  // duffel-service
+        // target: BACKEND, // SERVER
+        changeOrigin: true,
+        secure: false,
+        configure: stripWWWAuthenticate,
+      },
+
+      '/api/guests': {
+        target: 'http://localhost:8084',  // duffel-service
+        // target: BACKEND, // SERVER
+        changeOrigin: true,
+        secure: false,
+        configure: stripWWWAuthenticate,
+      },
+
+      '/api/hotel-bookings': {
+        target: 'http://localhost:8084',  // duffel-service
+        // target: BACKEND, // SERVER
+        changeOrigin: true,
+        secure: false,
+        configure: stripWWWAuthenticate,
+      },
+
       '/partneredhotel': {
         target: 'http://localhost:8084',
         // target: BACKEND, // SERVER

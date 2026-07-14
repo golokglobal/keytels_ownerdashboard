@@ -561,6 +561,11 @@ export const HotelList = () => {
               From <span className="font-semibold text-emerald-600">${minP}</span>/night
             </p>
           )}
+          {hotel.createdAt && (
+            <p className="text-[10px] text-slate-300 mt-0.5">
+              Listed {new Date(hotel.createdAt).toLocaleDateString()}
+            </p>
+          )}
         </div>
 
         {/* Location */}

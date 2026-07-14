@@ -1,11 +1,26 @@
+import { useEffect, useState, useCallback } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Tag, TrendingUp, Megaphone, Zap, Radio,
-  ArrowUpRight, ArrowDownRight, Plus, Edit2, Pause, Play,
-  Trash2, Eye, BarChart3, Target, DollarSign, Users,
-  Star, Calendar, Clock, CheckCircle2, AlertCircle,
-  ChevronRight, ToggleLeft, ToggleRight, Info,
+  Tag, Megaphone, Zap, Radio,
+  ArrowUpRight, ArrowDownRight, Plus,
+  BarChart3, Target, DollarSign, Users,
+  Star, AlertCircle,
+  ChevronRight, ToggleLeft, ToggleRight, RefreshCw, Info,
 } from 'lucide-react';
+import {
+  fetchOwnerBilling, fetchOwnerDashboardAnalytics,
+  selectBilling, selectOwnerDashboard, selectOwnerDashboardLoading,
+} from '../store/slices/paymentsSlice';
+import { fetchBookingSummary, selectBookingSummary } from '../store/slices/bookingSlice';
+import api from '../config/axiosConfig';
+import { isBillingSubscriptionActive } from '../utils/subscriptionUtils';
+
+/* ─────────────────────────── helpers ─────────────────────────── */
+const fmtMoney = (v) =>
+  v == null ? '—' : '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmtNum = (v) => (v == null ? '—' : Number(v).toLocaleString('en-US'));
+const fmtPct = (v) => (v == null ? '—' : (v * 100).toFixed(1) + '%');
 
 /* ─────────────────────────── SHARED ─────────────────────────── */
 const Badge = ({ label, color }) => {
@@ -17,32 +32,38 @@ const Badge = ({ label, color }) => {
     pending:  'bg-yellow-100 text-yellow-700 border-yellow-200',
     boosted:  'bg-purple-100 text-purple-700 border-purple-200',
     live:     'bg-emerald-100 text-emerald-700 border-emerald-200',
+    inactive: 'bg-slate-100  text-slate-500  border-slate-200',
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${map[color] || map.draft}`}>
-      {color === 'active' || color === 'live' ? <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" /> : null}
+      {(color === 'active' || color === 'live') && (
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
+      )}
       {label}
     </span>
   );
 };
 
-const StatCard = ({ icon: Icon, label, value, change, up, color = 'indigo' }) => {
+const StatCard = ({ icon: Icon, label, value, change, up, color = 'indigo', loading }) => {
   const colors = {
     indigo: 'bg-indigo-50 text-indigo-600',
     teal:   'bg-teal-50   text-teal-600',
     amber:  'bg-amber-50  text-amber-600',
     rose:   'bg-rose-50   text-rose-600',
     purple: 'bg-purple-50 text-purple-600',
+    emerald:'bg-emerald-50 text-emerald-600',
   };
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-start justify-between">
       <div>
         <p className="text-xs font-medium text-slate-500 uppercase tracking-widest mb-1">{label}</p>
-        <p className="text-2xl font-extrabold text-slate-900">{value}</p>
+        <p className="text-2xl font-extrabold text-slate-900">
+          {loading ? <span className="text-slate-300">…</span> : value}
+        </p>
         {change && (
           <p className={`text-xs mt-1 flex items-center gap-0.5 font-medium ${up ? 'text-emerald-600' : 'text-red-500'}`}>
             {up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-            {change} vs last month
+            {change}
           </p>
         )}
       </div>
@@ -53,91 +74,137 @@ const StatCard = ({ icon: Icon, label, value, change, up, color = 'indigo' }) =>
   );
 };
 
+const PlaceholderBanner = ({ title, desc }) => (
+  <div className="flex items-start gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+    <Info className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
+    <div>
+      <p className="font-semibold text-slate-700">{title}</p>
+      {desc && <p className="text-xs text-slate-500 mt-0.5">{desc}</p>}
+    </div>
+  </div>
+);
+
 /* ─────────────────────────── OVERVIEW TAB ─────────────────────────── */
-const MINI_BARS = [42, 68, 55, 80, 73, 91, 84];
-const WEEKDAYS  = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+function OverviewTab({ ownerDashboard, bookingSummary, loading }) {
+  const totalRevenue    = ownerDashboard?.totalRevenue   ?? 0;
+  const totalBookings   = bookingSummary?.totalBookings  ?? ownerDashboard?.totalBookings ?? 0;
+  const confirmedB      = bookingSummary?.confirmedBookings ?? 0;
+  const cancelledB      = bookingSummary?.cancelledBookings ?? 0;
+  const pendingB        = bookingSummary?.pendingBookings   ?? 0;
+  const avgBookingValue = totalBookings > 0 ? totalRevenue / totalBookings : 0;
+  const cancelRate      = totalBookings > 0 ? cancelledB / totalBookings : 0;
 
-const ACTIVE_CAMPAIGNS_SUMMARY = [
-  { name: 'Summer Drive',          type: 'TravelAds',   status: 'active',  roas: '5.1x', spend: '₹18,400' },
-  { name: 'Weekend Flash Sale',    type: 'Promotion',   status: 'active',  roas: '4.2x', spend: '₹6,200'  },
-  { name: 'Business Traveler Pro', type: 'Campaign',    status: 'active',  roas: '3.8x', spend: '₹12,800' },
-  { name: 'Visibility Boost Q2',   type: 'Accelerator', status: 'boosted', roas: '—',    spend: '₹9,500'  },
-];
+  // Daily revenue for the sparkline
+  const dailyRev = Array.isArray(ownerDashboard?.dailyRevenue) ? ownerDashboard.dailyRevenue : [];
+  const maxRev   = dailyRev.length > 0 ? Math.max(...dailyRev.map(d => d.revenue ?? 0), 1) : 1;
+  const last7    = dailyRev.slice(-7);
 
-function OverviewTab() {
+  // Revenue by hotel
+  const revenueByHotel = Array.isArray(ownerDashboard?.revenueByHotel) ? ownerDashboard.revenueByHotel : [];
+
   return (
     <div className="space-y-6">
-      {/* KPI cards */}
+      {/* KPI cards — real data */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Eye}       label="Total Impressions" value="1.24M"  change="+14%"  up color="indigo" />
-        <StatCard icon={Users}     label="Clicks"            value="38,410" change="+9%"   up color="teal"   />
-        <StatCard icon={Target}    label="Conversion Rate"   value="3.8%"   change="+0.4%" up color="amber"  />
-        <StatCard icon={BarChart3} label="Avg. ROAS"         value="4.2x"   change="+0.6x" up color="purple" />
+        <StatCard icon={DollarSign} label="Total Revenue"      value={fmtMoney(totalRevenue)}    color="emerald" loading={loading} />
+        <StatCard icon={Users}      label="Total Bookings"     value={fmtNum(totalBookings)}     color="teal"    loading={loading} />
+        <StatCard icon={Star}       label="Avg. Booking Value" value={fmtMoney(avgBookingValue)} color="amber"   loading={loading} />
+        <StatCard icon={Target}     label="Cancellation Rate"  value={fmtPct(cancelRate)}        color="rose"    loading={loading} />
       </div>
 
-      {/* Chart + active campaigns */}
+      {/* Revenue trend + hotel breakdown */}
       <div className="grid lg:grid-cols-[1.4fr_1fr] gap-5">
-        {/* Impressions chart */}
+
+        {/* Daily revenue sparkline */}
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="font-semibold text-slate-900">Impressions — Last 7 days</p>
-              <p className="text-xs text-slate-400 mt-0.5">Across all active campaigns</p>
+              <p className="font-semibold text-slate-900">Revenue — Last 7 days</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {loading ? 'Loading…' : `${fmtMoney(totalRevenue)} total period`}
+              </p>
             </div>
-            <span className="text-xs text-indigo-600 font-semibold bg-indigo-50 px-2.5 py-1 rounded-full">+14% WoW</span>
           </div>
-          <div className="flex items-end gap-2 h-28">
-            {MINI_BARS.map((h, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <div
-                  className="w-full rounded-t-md bg-indigo-500 transition-all"
-                  style={{ height: `${h}%` }}
-                />
-                <span className="text-[9px] text-slate-400">{WEEKDAYS[i]}</span>
-              </div>
-            ))}
-          </div>
+          {last7.length === 0 && !loading ? (
+            <div className="flex items-center justify-center h-28 text-slate-400 text-sm">
+              No revenue data yet
+            </div>
+          ) : (
+            <div className="flex items-end gap-2 h-28">
+              {(last7.length > 0 ? last7 : Array(7).fill({ revenue: 0, date: '' })).map((d, i) => {
+                const h = maxRev > 0 ? Math.max(4, (d.revenue / maxRev) * 100) : 4;
+                const label = d.date
+                  ? new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' })
+                  : ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i];
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1" title={`${label}: ${fmtMoney(d.revenue)}`}>
+                    <div
+                      className="w-full rounded-t-md bg-emerald-500 transition-all"
+                      style={{ height: `${h}%`, opacity: loading ? 0.3 : 1 }}
+                    />
+                    <span className="text-[9px] text-slate-400">{label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Active campaigns */}
+        {/* Revenue by hotel */}
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <p className="font-semibold text-slate-900 mb-3">Active Campaigns</p>
-          <div className="space-y-2.5">
-            {ACTIVE_CAMPAIGNS_SUMMARY.map((c) => (
-              <div key={c.name} className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5">
-                <div>
-                  <p className="text-sm font-medium text-slate-800 leading-tight">{c.name}</p>
-                  <p className="text-xs text-slate-400">{c.type}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  {c.roas !== '—' && <span className="text-xs font-semibold text-emerald-600">{c.roas}</span>}
-                  <Badge label={c.status.charAt(0).toUpperCase() + c.status.slice(1)} color={c.status} />
-                </div>
-              </div>
-            ))}
-          </div>
+          <p className="font-semibold text-slate-900 mb-3">Revenue by Property</p>
+          {loading ? (
+            <div className="space-y-2">
+              {[1,2,3].map(i => <div key={i} className="h-10 bg-slate-100 rounded-xl animate-pulse" />)}
+            </div>
+          ) : revenueByHotel.length === 0 ? (
+            <p className="text-sm text-slate-400 py-6 text-center">No hotel data available</p>
+          ) : (
+            <div className="space-y-2.5">
+              {revenueByHotel.slice(0, 5).map((h, i) => {
+                const maxH = Math.max(...revenueByHotel.map(x => x.revenue ?? 0), 1);
+                const pct  = maxH > 0 ? ((h.revenue ?? 0) / maxH) * 100 : 0;
+                return (
+                  <div key={h.hotelId || i} className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-sm font-medium text-slate-800 truncate pr-2">{h.hotelName || `Hotel ${i+1}`}</p>
+                      <span className="text-xs font-bold text-emerald-700 shrink-0">{fmtMoney(h.revenue)}</span>
+                    </div>
+                    <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Funnel strip */}
+      {/* Booking funnel — real data */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <p className="font-semibold text-slate-900 mb-4">Conversion Funnel</p>
+        <p className="font-semibold text-slate-900 mb-4">Booking Funnel</p>
         <div className="grid grid-cols-4 gap-0 text-center text-sm relative">
           {[
-            { label: 'Impressions', value: '1.24M', pct: null },
-            { label: 'Clicks',      value: '38,410', pct: '3.1%' },
-            { label: 'Inquiries',   value: '4,820',  pct: '12.6%' },
-            { label: 'Bookings',    value: '1,460',  pct: '30.3%' },
+            { label: 'Total Bookings', value: fmtNum(totalBookings) },
+            { label: 'Confirmed',      value: fmtNum(confirmedB)    },
+            { label: 'Pending',        value: fmtNum(pendingB)      },
+            { label: 'Cancelled',      value: fmtNum(cancelledB)    },
           ].map((s, i) => (
             <div key={s.label} className="flex flex-col items-center relative">
-              {i > 0 && (
-                <ChevronRight className="absolute -left-2 top-3 w-4 h-4 text-slate-300" />
-              )}
-              <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mb-2">
-                <p className="text-sm font-extrabold text-indigo-700 leading-tight">{s.value}</p>
+              {i > 0 && <ChevronRight className="absolute -left-2 top-3 w-4 h-4 text-slate-300" />}
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-2 ${
+                i === 0 ? 'bg-emerald-50 border border-emerald-100' :
+                i === 3 ? 'bg-red-50 border border-red-100' :
+                          'bg-indigo-50 border border-indigo-100'
+              }`}>
+                <p className={`text-sm font-extrabold leading-tight ${
+                  i === 0 ? 'text-emerald-700' : i === 3 ? 'text-red-600' : 'text-indigo-700'
+                }`}>
+                  {loading ? '…' : s.value}
+                </p>
               </div>
               <p className="text-xs text-slate-500 font-medium">{s.label}</p>
-              {s.pct && <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">CVR {s.pct}</p>}
             </div>
           ))}
         </div>
@@ -147,227 +214,116 @@ function OverviewTab() {
 }
 
 /* ─────────────────────────── PROMOTIONS TAB ─────────────────────────── */
-const PROMOTIONS = [
-  {
-    id: 1, name: 'Early Bird Discount', type: 'Rate plan', discount: '15% off',
-    minStay: '2 nights', validFrom: 'May 1', validTo: 'Jun 30', rooms: 'All rooms',
-    bookings: 142, revenue: '₹2,84,000', status: 'active',
-  },
-  {
-    id: 2, name: 'Weekend Flash Sale', type: 'Limited time', discount: '20% off',
-    minStay: '1 night', validFrom: 'Jun 7', validTo: 'Jun 9', rooms: 'Deluxe & Suite',
-    bookings: 34, revenue: '₹68,000', status: 'active',
-  },
-  {
-    id: 3, name: 'Long Stay Special', type: 'Length of stay', discount: '25% off',
-    minStay: '7 nights', validFrom: 'Apr 1', validTo: 'Jul 31', rooms: 'All rooms',
-    bookings: 61, revenue: '₹3,05,000', status: 'active',
-  },
-  {
-    id: 4, name: 'Last Minute Deal', type: 'Last minute', discount: '30% off',
-    minStay: '1 night', validFrom: 'Rolling', validTo: '48h window', rooms: 'Standard',
-    bookings: 89, revenue: '₹1,24,600', status: 'active',
-  },
-  {
-    id: 5, name: 'Monsoon Retreat', type: 'Seasonal', discount: '18% off',
-    minStay: '3 nights', validFrom: 'Jul 15', validTo: 'Sep 15', rooms: 'All rooms',
-    bookings: 0, revenue: '—', status: 'draft',
-  },
-  {
-    id: 6, name: 'New Year Bonanza', type: 'Event', discount: '10% off',
-    minStay: '2 nights', validFrom: 'Dec 28', validTo: 'Jan 2', rooms: 'All rooms',
-    bookings: 210, revenue: '₹5,25,000', status: 'ended',
-  },
-];
+function PromotionsTab({ coupons, couponsLoading, onDeactivate }) {
+  const active   = coupons.filter(c => c.active);
+  const inactive = coupons.filter(c => !c.active);
 
-function PromotionsTab() {
+  const fmtDiscount = (c) => {
+    if (!c.discountValue) return '—';
+    return c.discountType === 'PERCENT'
+      ? `${c.discountValue}% off`
+      : `$${c.discountValue} off`;
+  };
+  const fmtExpiry = (dt) => {
+    if (!dt) return 'No expiry';
+    try { return new Date(dt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+    catch { return dt; }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-slate-500">Manage rate promotions and limited-time offers across your properties.</p>
-        </div>
-        <button className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors">
-          <Plus className="w-4 h-4" /> New Promotion
-        </button>
+        <p className="text-sm text-slate-500">Active discount codes and promotions on your properties.</p>
       </div>
 
       {/* Summary pills */}
       <div className="flex flex-wrap gap-3">
         {[
-          { label: 'Active',    count: 4, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-          { label: 'Draft',     count: 1, color: 'bg-blue-50 text-blue-700 border-blue-200'          },
-          { label: 'Ended',     count: 1, color: 'bg-slate-50 text-slate-500 border-slate-200'        },
-          { label: 'Total bookings from promos', count: '536', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-        ].map((p) => (
+          { label: 'Active',   count: active.length,   color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+          { label: 'Inactive', count: inactive.length, color: 'bg-slate-50 text-slate-500 border-slate-200'       },
+          { label: 'Total Uses', count: coupons.reduce((s, c) => s + (c.usageCount ?? 0), 0), color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+        ].map(p => (
           <div key={p.label} className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold ${p.color}`}>
             {p.label} <span className="font-extrabold">{p.count}</span>
           </div>
         ))}
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              {['Promotion', 'Type', 'Discount', 'Min. Stay', 'Valid Period', 'Rooms', 'Bookings', 'Revenue', 'Status', ''].map((h) => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {PROMOTIONS.map((p) => (
-              <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-slate-900">{p.name}</td>
-                <td className="px-4 py-3 text-slate-500">{p.type}</td>
-                <td className="px-4 py-3 font-semibold text-indigo-700">{p.discount}</td>
-                <td className="px-4 py-3 text-slate-500">{p.minStay}</td>
-                <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{p.validFrom} – {p.validTo}</td>
-                <td className="px-4 py-3 text-slate-500">{p.rooms}</td>
-                <td className="px-4 py-3 font-medium text-slate-800">{p.bookings}</td>
-                <td className="px-4 py-3 font-medium text-slate-800">{p.revenue}</td>
-                <td className="px-4 py-3"><Badge label={p.status.charAt(0).toUpperCase() + p.status.slice(1)} color={p.status} /></td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-1.5">
-                    <button className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                    {p.status === 'active'
-                      ? <button className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"><Pause className="w-3.5 h-3.5" /></button>
-                      : p.status === 'draft'
-                      ? <button className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><Play className="w-3.5 h-3.5" /></button>
-                      : null
-                    }
-                    <button className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
-                </td>
+      {couponsLoading ? (
+        <div className="space-y-3">
+          {[1,2,3].map(i => <div key={i} className="h-16 bg-slate-100 rounded-2xl animate-pulse" />)}
+        </div>
+      ) : coupons.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+          <Tag className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <p className="font-semibold text-slate-700">No coupons yet</p>
+          <p className="text-sm text-slate-400 mt-1">Coupons are created from the Billing Admin panel.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                {['Code', 'Discount', 'Type', 'Used / Limit', 'Expires', 'Status'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {coupons.map(c => (
+                <tr key={c.couponId} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <code className="text-xs font-bold bg-slate-100 text-slate-800 px-2 py-1 rounded-lg">{c.code}</code>
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-indigo-700">{fmtDiscount(c)}</td>
+                  <td className="px-4 py-3 text-slate-500 capitalize">{(c.discountType || '—').toLowerCase()}</td>
+                  <td className="px-4 py-3">
+                    <span className="text-slate-800 font-medium">{c.usageCount ?? 0}</span>
+                    <span className="text-slate-400"> / {c.usageLimit ?? '∞'}</span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{fmtExpiry(c.expiresAt)}</td>
+                  <td className="px-4 py-3">
+                    <Badge label={c.active ? 'Active' : 'Inactive'} color={c.active ? 'active' : 'inactive'} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
 
 /* ─────────────────────────── CAMPAIGNS TAB ─────────────────────────── */
-const CAMPAIGNS = [
-  {
-    id: 1, name: 'Summer Drive', channel: 'Meta + Google', status: 'active',
-    budget: '₹40,000', spend: '₹18,400', pct: 46,
-    impressions: '4,12,000', clicks: '12,340', ctr: '3.0%', roas: '5.1x',
-    startDate: 'Jun 1', endDate: 'Jun 30', tags: ['Brand', 'Leisure'],
-  },
-  {
-    id: 2, name: 'Business Traveler Pro', channel: 'LinkedIn', status: 'active',
-    budget: '₹25,000', spend: '₹12,800', pct: 51,
-    impressions: '2,80,000', clicks: '8,200', ctr: '2.9%', roas: '3.8x',
-    startDate: 'May 15', endDate: 'Jun 30', tags: ['Corporate', 'B2B'],
-  },
-  {
-    id: 3, name: 'Family Package Push', channel: 'Facebook', status: 'paused',
-    budget: '₹15,000', spend: '₹8,900', pct: 59,
-    impressions: '1,60,000', clicks: '4,100', ctr: '2.6%', roas: '3.1x',
-    startDate: 'May 1', endDate: 'May 31', tags: ['Family', 'Weekend'],
-  },
-  {
-    id: 4, name: 'Monsoon Escape', channel: 'Google Ads', status: 'draft',
-    budget: '₹30,000', spend: '₹0', pct: 0,
-    impressions: '—', clicks: '—', ctr: '—', roas: '—',
-    startDate: 'Jul 15', endDate: 'Aug 31', tags: ['Seasonal'],
-  },
-];
-
 function CampaignsTab() {
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">Paid campaign performance across Meta, Google, LinkedIn and more.</p>
-        <button className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors">
-          <Plus className="w-4 h-4" /> New Campaign
+      <PlaceholderBanner
+        title="No ad platform connected"
+        desc="Campaigns are managed through external platforms (Meta, Google Ads, LinkedIn). Connect your ad account to sync performance data here."
+      />
+      <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+        <Megaphone className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+        <p className="font-semibold text-slate-700 text-lg">Paid Campaigns</p>
+        <p className="text-slate-400 text-sm mt-2 max-w-xs mx-auto">
+          Once you connect an ad platform, campaign performance — impressions, clicks, spend, and ROAS — will appear here automatically.
+        </p>
+        <button className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors">
+          <Plus className="w-4 h-4" /> Connect Ad Platform
         </button>
-      </div>
-
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Megaphone}  label="Active Campaigns" value="2"        color="indigo" />
-        <StatCard icon={DollarSign} label="Total Spend"      value="₹40,100"  change="+22%" up color="teal"   />
-        <StatCard icon={Eye}        label="Total Reach"      value="8.52L"    change="+18%" up color="purple" />
-        <StatCard icon={BarChart3}  label="Avg. ROAS"        value="4.5x"     change="+0.8x" up color="amber" />
-      </div>
-
-      <div className="space-y-4">
-        {CAMPAIGNS.map((c) => (
-          <div key={c.id} className="bg-white rounded-2xl border border-slate-200 p-5">
-            <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
-              <div>
-                <div className="flex items-center gap-2.5 mb-1">
-                  <p className="font-semibold text-slate-900">{c.name}</p>
-                  <Badge label={c.status.charAt(0).toUpperCase() + c.status.slice(1)} color={c.status} />
-                </div>
-                <div className="flex items-center gap-3 text-xs text-slate-400">
-                  <span>{c.channel}</span>
-                  <span>·</span>
-                  <span><Calendar className="inline w-3 h-3 mr-0.5" />{c.startDate} – {c.endDate}</span>
-                  {c.tags.map((t) => (
-                    <span key={t} className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">{t}</span>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                {c.status === 'active'
-                  ? <button className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"><Pause className="w-3.5 h-3.5" /></button>
-                  : c.status === 'paused' || c.status === 'draft'
-                  ? <button className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><Play className="w-3.5 h-3.5" /></button>
-                  : null
-                }
-              </div>
-            </div>
-
-            {/* Budget bar */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
-                <span>Budget utilisation</span>
-                <span className="font-semibold text-slate-700">{c.spend} <span className="font-normal">of {c.budget}</span></span>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-indigo-500 transition-all"
-                  style={{ width: `${c.pct}%` }}
-                />
-              </div>
-              <p className="text-right text-[11px] text-slate-400 mt-0.5">{c.pct}% used</p>
-            </div>
-
-            {/* Metrics */}
-            <div className="grid grid-cols-4 gap-3">
-              {[
-                { label: 'Impressions', value: c.impressions },
-                { label: 'Clicks',      value: c.clicks      },
-                { label: 'CTR',         value: c.ctr         },
-                { label: 'ROAS',        value: c.roas        },
-              ].map((m) => (
-                <div key={m.label} className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5 text-center">
-                  <p className="text-xs text-slate-400 mb-0.5">{m.label}</p>
-                  <p className="text-sm font-bold text-slate-800">{m.value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );
 }
 
 /* ─────────────────────────── ACCELERATOR TAB ─────────────────────────── */
-const ACCEL_HISTORY = [
-  { week: 'May 26 – Jun 1',  boost: '18%', impressions: '42,800', ctr: '3.4%', bookings: 28, cost: '₹3,200' },
-  { week: 'Jun 2 – Jun 8',   boost: '22%', impressions: '51,400', ctr: '3.8%', bookings: 36, cost: '₹3,900' },
-  { week: 'Jun 9 – Jun 15',  boost: '20%', impressions: '48,100', ctr: '3.6%', bookings: 31, cost: '₹3,600' },
-  { week: 'Jun 16 – Jun 22', boost: '25%', impressions: '58,700', ctr: '4.1%', bookings: 44, cost: '₹4,500' },
-];
+function AcceleratorTab({ billing }) {
+  const commissionRate = billing?.plan?.commissionRate;
+  const commissionPct  = commissionRate != null ? `${Math.round(commissionRate * 100)}%` : null;
+  const subStatus      = billing?.subscriptionStatus?.toUpperCase();
+  const isActive       = isBillingSubscriptionActive(billing);
 
-function AcceleratorTab() {
   return (
     <div className="space-y-5">
       {/* Info banner */}
@@ -376,8 +332,8 @@ function AcceleratorTab() {
         <div>
           <p className="text-sm font-semibold text-purple-900">What is Accelerator?</p>
           <p className="text-xs text-purple-700 mt-0.5 leading-relaxed">
-            Accelerator boosts your property's search ranking by bidding for premium placement. You only pay when a guest books.
-            Set a commission rate and Desiney automatically competes for top slots during high-demand periods.
+            Accelerator boosts your property's search ranking via priority placement. A platform commission applies to
+            every booking made through Desiney. Your current rate is shown below.
           </p>
         </div>
       </div>
@@ -386,177 +342,73 @@ function AcceleratorTab() {
       <div className="grid sm:grid-cols-3 gap-4">
         <div className="sm:col-span-1 bg-white rounded-2xl border border-slate-200 p-5 flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <p className="font-semibold text-slate-900">Accelerator Status</p>
-            <Badge label="Boosted" color="boosted" />
+            <p className="font-semibold text-slate-900">Platform Status</p>
+            <Badge label={isActive ? 'Active' : (subStatus || 'Unknown')} color={isActive ? 'active' : 'paused'} />
           </div>
           <div className="flex items-center gap-2 mt-1">
-            <ToggleRight className="w-8 h-8 text-purple-600" />
+            {isActive
+              ? <ToggleRight className="w-8 h-8 text-purple-600" />
+              : <ToggleLeft  className="w-8 h-8 text-slate-400" />
+            }
             <div>
-              <p className="text-xs text-slate-500">Currently active</p>
-              <p className="text-sm font-bold text-slate-900">Commission: <span className="text-purple-700">12%</span></p>
+              <p className="text-xs text-slate-500">Subscription: {subStatus || '—'}</p>
+              <p className="text-sm font-bold text-slate-900">
+                Commission:{' '}
+                <span className={commissionPct ? 'text-purple-700' : 'text-slate-400'}>
+                  {commissionPct ?? 'Not set'}
+                </span>
+              </p>
             </div>
           </div>
-          <div className="border-t border-slate-100 pt-3 space-y-1.5 text-sm">
-            <div className="flex justify-between text-slate-600">
-              <span>This month spend</span><span className="font-semibold">₹15,200</span>
+          {billing?.subscriptionCurrentPeriodEnd && (
+            <div className="border-t border-slate-100 pt-3 text-sm">
+              <div className="flex justify-between text-slate-600">
+                <span>Period ends</span>
+                <span className="font-semibold">
+                  {new Date(billing.subscriptionCurrentPeriodEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              </div>
             </div>
-            <div className="flex justify-between text-slate-600">
-              <span>Incremental bookings</span><span className="font-semibold">139</span>
-            </div>
-            <div className="flex justify-between text-slate-600">
-              <span>Avg. rank position</span><span className="font-semibold text-purple-700">#2.4</span>
-            </div>
-          </div>
-          <button className="mt-auto w-full py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-xl transition-colors">
-            Adjust Commission Rate
-          </button>
+          )}
         </div>
 
         <div className="sm:col-span-2 bg-white rounded-2xl border border-slate-200 p-5">
-          <p className="font-semibold text-slate-900 mb-4">Competitor Position Tracker</p>
-          <div className="space-y-2.5">
+          <p className="font-semibold text-slate-900 mb-3">How commission works</p>
+          <div className="space-y-3 text-sm text-slate-600">
             {[
-              { name: 'Your Property',   rank: 2,  score: 88, highlight: true },
-              { name: 'Sunrise Residency', rank: 1, score: 93, highlight: false },
-              { name: 'Park View Inn',   rank: 3,  score: 82, highlight: false },
-              { name: 'Grand Palace',    rank: 4,  score: 76, highlight: false },
-              { name: 'City Nest Hotel', rank: 5,  score: 71, highlight: false },
-            ].map((c) => (
-              <div key={c.name} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${c.highlight ? 'bg-purple-50 border border-purple-200' : 'bg-slate-50 border border-slate-100'}`}>
-                <span className={`text-sm font-bold w-5 ${c.highlight ? 'text-purple-700' : 'text-slate-400'}`}>#{c.rank}</span>
-                <p className={`text-sm font-medium flex-1 ${c.highlight ? 'text-purple-900' : 'text-slate-700'}`}>{c.name}</p>
-                <div className="flex items-center gap-2 w-28">
-                  <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${c.highlight ? 'bg-purple-500' : 'bg-slate-400'}`} style={{ width: `${c.score}%` }} />
-                  </div>
-                  <span className="text-xs font-semibold text-slate-600 w-8 text-right">{c.score}</span>
+              ['Guest books your hotel', 'Booking confirmed in Desiney'],
+              [`Platform takes ${commissionPct ?? '…'}`, 'Deducted from your payout'],
+              ['Rest transferred to you', 'Via your connected bank account'],
+            ].map(([step, note], i) => (
+              <div key={i} className="flex items-start gap-3 rounded-xl bg-slate-50 border border-slate-100 p-3">
+                <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">{i+1}</div>
+                <div>
+                  <p className="font-medium text-slate-800">{step}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{note}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
-      </div>
-
-      {/* Weekly history */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100">
-          <p className="font-semibold text-slate-900">Weekly Performance History</p>
-        </div>
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-100">
-            <tr>
-              {['Week', 'Visibility Boost', 'Impressions', 'CTR', 'Bookings', 'Cost'].map((h) => (
-                <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {ACCEL_HISTORY.map((row) => (
-              <tr key={row.week} className="hover:bg-slate-50 transition-colors">
-                <td className="px-5 py-3 text-slate-600">{row.week}</td>
-                <td className="px-5 py-3 font-semibold text-purple-700">+{row.boost}</td>
-                <td className="px-5 py-3 text-slate-700">{row.impressions}</td>
-                <td className="px-5 py-3 text-slate-700">{row.ctr}</td>
-                <td className="px-5 py-3 font-medium text-slate-900">{row.bookings}</td>
-                <td className="px-5 py-3 text-slate-700">{row.cost}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
     </div>
   );
 }
 
 /* ─────────────────────────── TRAVEL ADS TAB ─────────────────────────── */
-const AD_PLACEMENTS = [
-  {
-    id: 1, name: 'Desiney Search — Top Slot', placement: 'Search results #1',
-    status: 'live', impressions: '1,84,200', clicks: '9,210', ctr: '5.0%',
-    spend: '₹8,400', budget: '₹12,000', pct: 70, cpc: '₹0.91',
-  },
-  {
-    id: 2, name: 'Destination Page — Banner', placement: 'Mumbai destination page',
-    status: 'live', impressions: '92,100', clicks: '3,110', ctr: '3.4%',
-    spend: '₹4,200', budget: '₹8,000', pct: 53, cpc: '₹1.35',
-  },
-  {
-    id: 3, name: 'Similar Property Sidebar', placement: 'Competitor pages',
-    status: 'paused', impressions: '61,000', clicks: '1,440', ctr: '2.4%',
-    spend: '₹3,100', budget: '₹6,000', pct: 52, cpc: '₹2.15',
-  },
-  {
-    id: 4, name: 'Email Newsletter Spot', placement: 'Weekly digest',
-    status: 'live', impressions: '38,500', clicks: '2,310', ctr: '6.0%',
-    spend: '₹1,900', budget: '₹3,000', pct: 63, cpc: '₹0.82',
-  },
-];
-
 function TravelAdsTab() {
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">Sponsored placements across Desiney search, destination pages, and email.</p>
-        <button className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors">
-          <Plus className="w-4 h-4" /> Create Ad
-        </button>
-      </div>
-
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Radio}      label="Live Ads"          value="3"        color="indigo" />
-        <StatCard icon={Eye}        label="Total Impressions" value="3.76L"    change="+11%" up color="teal"   />
-        <StatCard icon={Users}      label="Total Clicks"      value="16,070"   change="+8%"  up color="amber"  />
-        <StatCard icon={DollarSign} label="Total Spend"       value="₹17,600"  change="+15%" up color="purple" />
-      </div>
-
-      <div className="space-y-4">
-        {AD_PLACEMENTS.map((ad) => (
-          <div key={ad.id} className="bg-white rounded-2xl border border-slate-200 p-5">
-            <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
-              <div>
-                <div className="flex items-center gap-2.5 mb-1">
-                  <p className="font-semibold text-slate-900">{ad.name}</p>
-                  <Badge label={ad.status === 'live' ? 'Live' : 'Paused'} color={ad.status === 'live' ? 'live' : 'paused'} />
-                </div>
-                <p className="text-xs text-slate-400 flex items-center gap-1">
-                  <Target className="w-3 h-3" /> {ad.placement}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                {ad.status === 'live'
-                  ? <button className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"><Pause className="w-3.5 h-3.5" /></button>
-                  : <button className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><Play className="w-3.5 h-3.5" /></button>
-                }
-              </div>
-            </div>
-
-            {/* Budget bar */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
-                <span>Budget used</span>
-                <span className="font-semibold text-slate-700">{ad.spend} <span className="font-normal">of {ad.budget}</span></span>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-indigo-500" style={{ width: `${ad.pct}%` }} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-4 gap-3">
-              {[
-                { label: 'Impressions', value: ad.impressions },
-                { label: 'Clicks',      value: ad.clicks      },
-                { label: 'CTR',         value: ad.ctr         },
-                { label: 'Avg. CPC',    value: ad.cpc         },
-              ].map((m) => (
-                <div key={m.label} className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5 text-center">
-                  <p className="text-xs text-slate-400 mb-0.5">{m.label}</p>
-                  <p className="text-sm font-bold text-slate-800">{m.value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+      <PlaceholderBanner
+        title="Sponsored placements coming soon"
+        desc="TravelAds — Desiney's internal sponsored search and destination page placements — will be available in a future release."
+      />
+      <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+        <Radio className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+        <p className="font-semibold text-slate-700 text-lg">TravelAds</p>
+        <p className="text-slate-400 text-sm mt-2 max-w-sm mx-auto">
+          Sponsored placements across Desiney search results, destination pages, and email campaigns will be manageable from here.
+        </p>
       </div>
     </div>
   );
@@ -572,28 +424,93 @@ const TABS = [
 ];
 
 export const Marketing = () => {
+  const dispatch   = useDispatch();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'overview';
+  const activeTab  = searchParams.get('tab') || 'overview';
+  const setTab     = (key) => setSearchParams({ tab: key });
 
-  const setTab = (key) => setSearchParams({ tab: key });
+  // Auth
+  const ownerId = localStorage.getItem('userId');
+  const hotelId = localStorage.getItem('hotelId');
+
+  // Redux state — real data from slices
+  const ownerDashboard = useSelector(selectOwnerDashboard);
+  const billing        = useSelector(selectBilling);
+  const dashLoading    = useSelector(selectOwnerDashboardLoading);
+  const bookingSummary = useSelector(selectBookingSummary);
+
+  // Local state for coupons (not in Redux)
+  const [coupons,        setCoupons]        = useState([]);
+  const [couponsLoading, setCouponsLoading] = useState(false);
+  const [error,          setError]          = useState(null);
+
+  const loadData = useCallback(async () => {
+    if (!ownerId) return;
+    setError(null);
+
+    // Dispatch Redux thunks
+    await Promise.allSettled([
+      dispatch(fetchOwnerDashboardAnalytics({ ownerId })),
+      dispatch(fetchOwnerBilling(ownerId)),
+      hotelId ? dispatch(fetchBookingSummary(hotelId)) : Promise.resolve(),
+    ]);
+
+    // Coupons — not in Redux, fetch locally
+    setCouponsLoading(true);
+    try {
+      const res = await api.get('/coupons');
+      setCoupons(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setCoupons([]);
+    } finally {
+      setCouponsLoading(false);
+    }
+  }, [ownerId, hotelId, dispatch]);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'promotions':  return <PromotionsTab />;
-      case 'campaigns':   return <CampaignsTab />;
-      case 'accelerator': return <AcceleratorTab />;
-      case 'travelads':   return <TravelAdsTab />;
-      default:            return <OverviewTab />;
+      case 'promotions':
+        return <PromotionsTab coupons={coupons} couponsLoading={couponsLoading} />;
+      case 'campaigns':
+        return <CampaignsTab />;
+      case 'accelerator':
+        return <AcceleratorTab billing={billing} />;
+      case 'travelads':
+        return <TravelAdsTab />;
+      default:
+        return (
+          <OverviewTab
+            ownerDashboard={ownerDashboard}
+            bookingSummary={bookingSummary}
+            loading={dashLoading}
+          />
+        );
     }
   };
 
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Marketing</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Manage promotions, paid campaigns, accelerator bids, and sponsored ads.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Marketing</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Performance metrics, promotions, and platform tools.</p>
+        </div>
+        <button onClick={loadData} disabled={dashLoading}
+          className="inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50">
+          <RefreshCw className={`w-3.5 h-3.5 ${dashLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
       </div>
+
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto pb-px hide-scrollbar">

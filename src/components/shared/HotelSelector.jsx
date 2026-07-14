@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Building2, MapPin } from 'lucide-react';
 import { fetchOwnerHotels } from '../../store/slices/PartnerHotelslice';
 import { setActiveHotelId, selectPrimaryHotelId, selectUserRole } from '../../store/slices/userSlice';
-import { HotelDropdown, getHotelId, getHotelName, getHotelLoc } from './HotelDropdown';
+import { HotelDropdown, HotelStatusBanner, getHotelId, getHotelName, getHotelLoc } from './HotelDropdown';
 
 /**
  * Global hotel selector — syncs selection to Redux.
@@ -27,16 +27,19 @@ export const HotelSelector = ({ className = '', size = 'sm' }) => {
   // Staff / Manager — static badge only
   if (!isOwner) {
     return (
-      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm ${className}`}>
-        <Building2 className="w-4 h-4 shrink-0 text-slate-400" />
-        <span className="font-semibold text-slate-800 truncate">
-          {loading && !activeHotel ? 'Loading…' : activeHotel ? getHotelName(activeHotel) : 'No hotel assigned'}
-        </span>
-        {activeHotel && getHotelLoc(activeHotel) && (
-          <span className="text-slate-400 text-xs hidden sm:flex items-center gap-1 truncate">
-            · <MapPin className="w-3 h-3 shrink-0" /> {getHotelLoc(activeHotel)}
+      <div className={className}>
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm">
+          <Building2 className="w-4 h-4 shrink-0 text-slate-400" />
+          <span className="font-semibold text-slate-800 truncate">
+            {loading && !activeHotel ? 'Loading…' : activeHotel ? getHotelName(activeHotel) : 'No hotel assigned'}
           </span>
-        )}
+          {activeHotel && getHotelLoc(activeHotel) && (
+            <span className="text-slate-400 text-xs hidden sm:flex items-center gap-1 truncate">
+              · <MapPin className="w-3 h-3 shrink-0" /> {getHotelLoc(activeHotel)}
+            </span>
+          )}
+        </div>
+        {activeHotel && <HotelStatusBanner hotel={activeHotel} />}
       </div>
     );
   }

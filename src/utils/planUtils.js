@@ -32,15 +32,21 @@ export const PLAN_STYLE = {
  * FRANCHISE returns baseFeeUsd as the headline + per-property as the sub-line.
  */
 export const getPriceDisplay = (plan) => {
-  // FRANCHISE: base monthly fee + per-property fee
+  // FRANCHISE: base monthly fee + per-property fee — show both lines clearly
   if (plan.baseFeeUsd != null) {
     const perProp = plan.perPropertyMonthlyPriceUsd;
     return {
       amount: `$${plan.baseFeeUsd.toLocaleString()}`,
-      unit: "/mo base",
+      unit: "/mo base fee",
       sub: perProp != null
-        ? `+ $${perProp.toLocaleString()}/property/mo · charged as you add hotels`
-        : "Base fee only until you add hotels",
+        ? `+ $${perProp.toLocaleString()}/property/mo (added per hotel you list)`
+        : "Base fee only — per-property fee added as you list hotels",
+      breakdown: perProp != null
+        ? [
+            { label: "Base subscription", value: `$${plan.baseFeeUsd.toLocaleString()}/mo` },
+            { label: "Per hotel listed",  value: `$${perProp.toLocaleString()}/mo each` },
+          ]
+        : null,
     };
   }
   // SINGLE: flat monthly fee

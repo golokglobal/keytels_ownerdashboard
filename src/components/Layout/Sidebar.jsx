@@ -238,7 +238,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
       children: [
         { path: '/rooms', label: 'Rooms' },
         { path: '/checkins-outs', label: 'Check-ins & Outs' },
-        { path: '/settings', label: 'Cancellation policies' },
+        { path: '/cancellation-policies', label: 'Cancellation policies' },
         { path: '/financials', label: 'Fees & Revenue' },
       ],
     },
@@ -284,7 +284,8 @@ export const Sidebar = ({ isOpen, onClose }) => {
         { path: '/hotels', label: 'My Properties' },
         { path: '/add-hotel', label: 'Add / Edit Property' },
         { path: '/rooms', label: 'Rooms & Amenities' },
-        { path: '/settings', label: 'Fees & Policies' },
+        { path: '/cancellation-policies', label: 'Cancellation Policies' },
+        { path: '/settings', label: 'Settings' },
       ],
     },
     {

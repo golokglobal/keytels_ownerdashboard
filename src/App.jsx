@@ -33,6 +33,7 @@ const CatalogManagement = lazy(() => import('./pages/CatalogManagement').then(m 
 const HotelDetail       = lazy(() => import('./pages/HotelDetail').then(m => ({ default: m.HotelDetail })));
 const Marketing         = lazy(() => import('./pages/Marketing').then(m => ({ default: m.Marketing })));
 const Subscription      = lazy(() => import('./pages/Subscription').then(m => ({ default: m.Subscription })));
+const CancellationPolicies = lazy(() => import('./pages/CancellationPolicies'));
 
 /* Listens for auth:logout events fired by the axios interceptor */
 function AuthLogoutListener() {
@@ -92,6 +93,7 @@ function App() {
             <Route path="hotels/:hotelId" element={<HotelDetail />} />
             <Route path="marketing" element={<Marketing />} />
             <Route path="subscription" element={<Subscription />} />
+            <Route path="cancellation-policies" element={<CancellationPolicies />} />
           </Route>
 
           {/* Stripe redirect — must be public (user lands here from Stripe) */}
